@@ -21,8 +21,12 @@ function validatePassword(password) {
     return hasCapital && hasSmall && hasSymbol;
 }
 
+function getAuthToken() {
+    return sessionStorage.getItem('authToken');
+}
+
 // --- Login Handler (called from login.html) ---
-function handleLogin(e) {
+async function handleLogin(e) {
     e.preventDefault();
     const usernameInput = document.getElementById('username');
     const passwordInput = document.getElementById('password');
@@ -39,69 +43,46 @@ function handleLogin(e) {
     const username = usernameInput.value;
     const password = passwordInput.value;
 
-    let error = '';
+    try {
+        // --- 1. Send username/password to our new backend API ---
+        const response = await fetch('/api/login', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                username: username,
+                password: password
+            })
+        });
 
-    if (!validateEmail(username)) {
-        error = 'Email must end with @bankedge.com';
-    } else if (!validatePassword(password)) {
-        error = 'Password must contain at least one capital letter, one small letter, and one symbol';
-    }
+        const data = await response.json();
 
-    if (error) {
-        if (errorDescElement) errorDescElement.textContent = error;
+        if (!response.ok) {
+            // If response is not 2xx, throw the error from the server
+            throw new Error(data.error || 'Login failed');
+        }
+
+        // --- 2. Login successful! Save the new token and user info ---
+        sessionStorage.setItem('authToken', data.access_token);
+        sessionStorage.setItem('username', username);
+        sessionStorage.setItem('role', data.role);
+        sessionStorage.setItem('userLocation', data.userLocation);
+
+        // (We no longer clear localStorage here, which fixes the state bug)
+
+        // --- 3. Redirect to dashboard ---
+        window.location.href = '/dashboard';
+
+    } catch (error) {
+        // --- 4. Show any errors (e.g., "Invalid username or password") ---
+        if (errorDescElement) errorDescElement.textContent = error.message;
         if (errorElement) errorElement.style.display = 'flex';
         if (submitButton) {
             submitButton.disabled = false;
             submitButton.textContent = 'SIGN IN';
         }
-        return;
     }
-
-    // Simulate authentication delay
-    setTimeout(() => {
-        // Mock credentials check (same as before)
-        const validCredentials = [
-            { username: 'superadmin@bankedge.com', password: 'SuperAdmin@123', role: 'superadmin' },
-            { username: 'admin.johor@bankedge.com', password: 'Admin@123', role: 'admin' },
-            { username: 'admin.kedah@bankedge.com', password: 'Admin@123', role: 'admin' },
-            { username: 'admin.kelantan@bankedge.com', password: 'Admin@123', role: 'admin' },
-            { username: 'admin.malacca@bankedge.com', password: 'Admin@123', role: 'admin' },
-            { username: 'admin.negerisembilan@bankedge.com', password: 'Admin@123', role: 'admin' },
-            { username: 'admin.pahang@bankedge.com', password: 'Admin@123', role: 'admin' },
-            { username: 'admin.penang@bankedge.com', password: 'Admin@123', role: 'admin' },
-            { username: 'admin.perak@bankedge.com', password: 'Admin@123', role: 'admin' },
-            { username: 'admin.perlis@bankedge.com', password: 'Admin@123', role: 'admin' },
-            { username: 'admin.sabah@bankedge.com', password: 'Admin@123', role: 'admin' },
-            { username: 'admin.sarawak@bankedge.com', password: 'Admin@123', role: 'admin' },
-            { username: 'admin.selangor@bankedge.com', password: 'Admin@123', role: 'admin' },
-            { username: 'admin.terengganu@bankedge.com', password: 'Admin@123', role: 'admin' },
-            { username: 'admin.kl@bankedge.com', password: 'Admin@123', role: 'admin' },
-            { username: 'admin.labuan@bankedge.com', password: 'Admin@123', role: 'admin' },
-            { username: 'admin.putrajaya@bankedge.com', password: 'Admin@123', role: 'admin' }
-        ];
-
-        const determinedRole = username.startsWith('superadmin') ? 'superadmin' : 'admin';
-        const validUser = validCredentials.find(
-            cred => cred.username === username && cred.password === password
-        );
-
-        if (validUser) {
-            const mockJWT = `mock-jwt-token-for-${username}`;
-            sessionStorage.setItem('authToken', mockJWT);
-            sessionStorage.setItem('username', username);
-            sessionStorage.setItem('role', determinedRole);
-            sessionStorage.setItem('userLocation', getLocationFromUsername(username, determinedRole));
-            localStorage.removeItem('manualNodeOverrides');
-            window.location.href = '/dashboard';
-        } else {
-            if (errorDescElement) errorDescElement.textContent = 'Invalid credentials. Please check your username and password.';
-            if (errorElement) errorElement.style.display = 'flex';
-            if (submitButton) {
-                submitButton.disabled = false;
-                submitButton.textContent = 'SIGN IN';
-            }
-        }
-    }, 1000);
 }
 
 // --- Logout Handler ---
@@ -110,7 +91,6 @@ function handleLogout() {
     sessionStorage.removeItem('username');
     sessionStorage.removeItem('role');
     sessionStorage.removeItem('userLocation');
-    localStorage.removeItem('manualNodeOverrides');
     window.location.href = '/';
 }
 
@@ -249,11 +229,8 @@ function renderEdgeNodeCards(devices) {
     if (!gridEl || !titleEl) return;
     titleEl.textContent = devices.length === 1 ? 'Edge Node Details' : 'Edge Nodes Status';
 
-    const overrides = JSON.parse(sessionStorage.getItem('manualNodeOverrides') || '{}');
-    const processedDevices = devices.map(d => ({
-        ...d,
-        status: overrides[d.id] || d.status
-    }));
+    // No more overrides, just use the data from the API
+    const processedDevices = devices;
 
     gridEl.innerHTML = processedDevices.map(device => {
         const load = device.load;
@@ -261,13 +238,12 @@ function renderEdgeNodeCards(devices) {
         if (load > 50) loadColorClass = 'medium';
         if (load > 80) loadColorClass = 'high';
 
-        // --- FIX #2b: Add power button logic here ---
         const isOffline = device.status === 'offline';
         const actionButton = isOffline
-            ? `<button class="power-button off" onclick="handleToggleNodeStatus('${device.id}', 'online')">
+            ? `<button class="power-button off" onclick="handleToggleNodeStatus('${device.id}')">
                  <i class="fas fa-power-off"></i> Power On
                </button>`
-            : `<button class="power-button on" onclick="handleToggleNodeStatus('${device.id}', 'offline')">
+            : `<button class="power-button on" onclick="handleToggleNodeStatus('${device.id}')">
                  <i class="fas fa-power-off"></i> Power Off
                </button>`;
 
@@ -278,7 +254,7 @@ function renderEdgeNodeCards(devices) {
                     <h3>${device.name.replace('Edge Node ', '')}</h3>
                     <p>${device.location}</p>
                 </div>
-                <span class_badge ${device.status}">${device.status}</span>
+                <span class="status-badge ${device.status === 'online' ? 'active' : 'inactive'}">${device.status}</span>
             </div>
             <div class="node-card-body">
                 <div class="node-stat">
@@ -297,7 +273,6 @@ function renderEdgeNodeCards(devices) {
                     <div class="bar"><div class="bar-inner ${loadColorClass}" style="width: ${device.load}%;"></div></div>
                 </div>
             </div>
-            <!-- FIX #2b: Add the footer with the button -->
             <div class="device-card-footer" style="padding-top: 12px; margin-top: 12px; border-top: 1px solid var(--border-color);">
                 ${actionButton}
             </div>
@@ -381,7 +356,6 @@ async function initializeDashboard() {
 // --- Edge Devices Page Logic (/edge-devices) ---
 let edgePageDevices = [];
 let syncingDevices = new Set();
-let manualNodeOverrides = {};
 
 function renderEdgePageHeader(userLocation) {
     const titleEl = document.getElementById('edge-page-title');
@@ -542,30 +516,53 @@ function renderDeviceTableView(devices) {
     }).join('');
 }
 
-// FIX #2: New function to toggle node status
-function handleToggleNodeStatus(deviceId, newStatus) {
-    // Set the new status directly in the overrides
-    manualNodeOverrides[deviceId] = newStatus;
+async function handleToggleNodeStatus(deviceId) {
+    const token = getAuthToken();
+    try {
+        const res = await fetch(`/api/devices/toggle-status/${deviceId}`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
 
-    // Save to local storage
-    localStorage.setItem('manualNodeOverrides', JSON.stringify(manualNodeOverrides));
+        if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.error || 'Failed to toggle status');
+        }
 
-    // Re-render the data for whatever page we are on
-    initializePageData();
+        const updatedDevice = await res.json();
+
+        // Find and update the device in our local list to re-render immediately
+        edgePageDevices = edgePageDevices.map(d =>
+            d.id === updatedDevice.id ? { ...d, status: updatedDevice.status } : d
+        );
+        renderEdgeDevicesPage();
+
+    } catch (error) {
+        console.error(`Error toggling status for ${deviceId}:`, error);
+        alert(`Error: ${error.message}`); // Show alert for permission errors
+    }
 }
 
 async function handleManualSync(deviceId, deviceName) {
+    const token = getAuthToken();
     syncingDevices.add(deviceId);
-    renderEdgeDevicesPage(); // Re-render to show loading state
+    renderEdgeDevicesPage();
 
     try {
-        const res = await fetch(`/api/devices/sync/${deviceId}`, { method: 'POST' });
+        const res = await fetch(`/api/devices/sync/${deviceId}`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}` }
+        });
         if (!res.ok) throw new Error('Sync failed');
         const syncedDevice = await res.json();
 
-        // Update the device in our main list
+        // Merge the new sync data with the persistent status from the DB
+        const currentDevice = edgePageDevices.find(d => d.id === deviceId);
+
         edgePageDevices = edgePageDevices.map(device =>
-            device.id === deviceId ? syncedDevice : device
+            device.id === deviceId
+            ? { ...syncedDevice, status: currentDevice.status } // Keep the persistent status
+            : device
         );
 
         console.log(`${deviceName} synchronized successfully`);
@@ -573,17 +570,15 @@ async function handleManualSync(deviceId, deviceName) {
         console.error(`Error syncing ${deviceName}:`, error);
     } finally {
         syncingDevices.delete(deviceId);
-        renderEdgeDevicesPage(); // Re-render with fresh data
+        renderEdgeDevicesPage();
     }
 }
 
 function renderEdgeDevicesPage() {
     const userLocation = sessionStorage.getItem('userLocation');
 
-    const processedDevices = edgePageDevices.map(d => ({
-        ...d,
-        status: manualNodeOverrides[d.id] || d.status
-    }));
+    // We no longer need overrides, the API data is the source of truth
+    const processedDevices = edgePageDevices;
 
     let devices = (userLocation === 'Global HQ')
         ? processedDevices
@@ -596,11 +591,13 @@ function renderEdgeDevicesPage() {
 }
 
 async function initializeEdgeDevicesPage() {
-    manualNodeOverrides = JSON.parse(localStorage.getItem('manualNodeOverrides') || '{}');
+    const token = getAuthToken();
 
     async function fetchEdgeData() {
         try {
-            const res = await fetch('/api/devices');
+            const res = await fetch('/api/devices', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
             if (!res.ok) throw new Error('Failed to fetch devices');
             const allDevices = await res.json();
 
@@ -898,9 +895,12 @@ function switchMLTab(tabName) {
 
 async function initializeMLPage() {
     const userLocation = sessionStorage.getItem('userLocation');
+    const token = getAuthToken(); // Get token
 
     try {
-        const devRes = await fetch('/api/devices');
+        const devRes = await fetch('/api/devices', {
+             headers: { 'Authorization': `Bearer ${token}` } // Send token
+        });
         if (!devRes.ok) throw new Error('Failed to fetch devices');
         allDevicesData = await devRes.json();
     } catch (e) {
@@ -912,7 +912,9 @@ async function initializeMLPage() {
 
     async function fetchMLData() {
         try {
-            const res = await fetch('/api/ml-data');
+            const res = await fetch('/api/ml-data', {
+                 headers: { 'Authorization': `Bearer ${token}` } // Send token
+            });
             if (!res.ok) throw new Error('Failed to fetch ML data');
             const data = await res.json();
 
@@ -920,7 +922,6 @@ async function initializeMLPage() {
             allMlTransactions = data.transactions || [];
             processingDecisionsData = data.decisions || [];
 
-            // FIX #1: Correct filtering
             let transactions = (userLocation === 'Global HQ')
                 ? allMlTransactions
                 : allMlTransactions.filter(t => {
@@ -1161,26 +1162,28 @@ function handleRetryTransaction(txnId) {
 // NEW: Stripe Checkout submit handler
 async function handleCheckoutSubmit(e) {
     e.preventDefault();
-
+    const token = getAuthToken(); // Get token
     const submitBtn = document.getElementById('payment-submit-btn');
     const messageEl = document.getElementById('payment-message');
 
-    // --- 1. Disable form and show loading ---
     submitBtn.disabled = true;
     submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
     messageEl.textContent = 'Creating secure checkout session...';
     messageEl.style.display = 'block';
     messageEl.style.color = 'var(--muted-text)';
+    messageEl.className = 'alert-banner';
 
     const amount = document.getElementById('amount').value;
     const recipientAccount = document.getElementById('recipientAccount').value;
     const reference = document.getElementById('reference').value;
 
     try {
-        // --- 2. Create Checkout Session on our backend ---
         const res = await fetch('/api/create-checkout-session', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}` // Send token
+            },
             body: JSON.stringify({
                 amount: amount,
                 recipientAccount: recipientAccount,
@@ -1194,7 +1197,6 @@ async function handleCheckoutSubmit(e) {
         const sessionId = data.sessionId;
         messageEl.textContent = 'Session created. Redirecting to Stripe...';
 
-        // --- 3. Redirect to Stripe's hosted checkout page ---
         const { error } = await stripe.redirectToCheckout({
             sessionId: sessionId
         });
@@ -1205,8 +1207,9 @@ async function handleCheckoutSubmit(e) {
 
     } catch (error) {
         console.error('Checkout failed:', error);
-        messageEl.textContent = `Error: ${error.message}`;
-        messageEl.style.color = 'var(--red-light)';
+        messageEl.innerHTML = `<i class="fas fa-exclamation-circle"></i> Error: ${error.message}`;
+        messageEl.style.color = 'var(--status-error-text)';
+        messageEl.style.borderColor = 'var(--status-error-text)';
         submitBtn.disabled = false;
         submitBtn.innerHTML = '<i class="fas fa-credit-card"></i> Proceed to Payment';
     }
@@ -1215,22 +1218,34 @@ async function handleCheckoutSubmit(e) {
 // Fetches all transaction data
 async function fetchTxnData() {
     const userLocation = sessionStorage.getItem('userLocation');
+    const token = getAuthToken(); // Get token
     try {
-        const res = await fetch('/api/transactions');
+        const res = await fetch('/api/transactions', {
+            headers: { 'Authorization': `Bearer ${token}` } // Send token
+        });
         if (!res.ok) throw new Error('Failed to fetch transactions');
-        let allTransactions = await res.json(); // This now includes our persisted txns
+        let allTransactions = await res.json();
 
-        // FIX #1: Correct filtering
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('status') === 'success') {
+            // This logic is now handled by the webhook simulation,
+            // but we'll leave the UI message part.
+        }
+
         pageTransactions = (userLocation === 'Global HQ')
             ? allTransactions
             : allTransactions.filter(t => {
                 const device = allTxnDevices.find(d => d.id === t.deviceId);
-                // Handle demo txns that might not have a device ID from the user's location
-                if (t.id.startsWith('txn-demo-') || t.id.startsWith('cs_test_')) return true;
+                if (t.id.startsWith('txn-demo-') || t.id.startsWith('cs_test_')) {
+                    if (userLocation !== 'Global HQ') {
+                         const userDevice = allTxnDevices.find(d => d.location.toUpperCase() === userLocation);
+                         return t.deviceId === userDevice?.id;
+                    }
+                    return true;
+                }
                 return device && device.name === `Edge Node ${userLocation}`;
             });
 
-        // Sort by timestamp to ensure newest are first (since we combined lists)
         pageTransactions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
         renderTxnStatCards(pageTransactions);
@@ -1252,25 +1267,22 @@ async function checkTransactionStatus() {
     const messageEl = document.getElementById('payment-message');
     if (!messageEl) return;
 
-    if (status === 'success') {
+    if (status === 'success' && sessionId) {
         messageEl.innerHTML = '<i class="fas fa-check-circle"></i> Payment successful! Your transaction has been recorded.';
         messageEl.style.color = 'var(--status-active-text)';
         messageEl.style.borderColor = 'var(--status-active-bg)';
         messageEl.style.backgroundColor = 'var(--status-active-bg)';
         messageEl.style.display = 'flex';
 
-        // --- NEW: Tell backend to update the transaction status ---
-        // This simulates the webhook
-        if (sessionId) {
-            try {
-                await fetch('/api/webhook/stripe', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ session_id: sessionId })
-                });
-            } catch (e) {
-                console.error("Failed to simulate webhook", e);
-            }
+        try {
+            // Tell backend to update the transaction status
+            await fetch('/api/webhook/stripe', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ session_id: sessionId })
+            });
+        } catch (e) {
+            console.error("Failed to simulate webhook", e);
         }
 
     } else if (status === 'cancel') {
@@ -1286,19 +1298,24 @@ async function checkTransactionStatus() {
 
 async function initializeTransactionsPage() {
     const userLocation = sessionStorage.getItem('userLocation');
+    const token = getAuthToken(); // Get token
 
     try {
-        const devRes = await fetch('/api/devices');
+        const devRes = await fetch('/api/devices', {
+            headers: { 'Authorization': `Bearer ${token}` } // Send token
+        });
         if (!devRes.ok) throw new Error('Failed to fetch devices');
         allTxnDevices = await devRes.json();
     } catch (e) { console.error(e); allTxnDevices = []; }
 
     renderTxnHeader(userLocation);
-    await checkTransactionStatus(); // Wait for this to finish
-    await fetchTxnData(); // Then fetch data
+    await checkTransactionStatus();
+    await fetchTxnData();
 
     try {
-        const configRes = await fetch('/api/config');
+        const configRes = await fetch('/api/config', {
+            headers: { 'Authorization': `Bearer ${token}` } // Send token
+        });
         const config = await configRes.json();
         const publishableKey = config.publishableKey;
         if (!publishableKey || !publishableKey.startsWith('pk_test_')) {
@@ -1324,8 +1341,6 @@ async function initializeTransactionsPage() {
             e.target.value = e.target.value.replace(/\D/g, '');
         });
     }
-
-    // Auto-refresh interval is REMOVED.
 }
 
 // --- System Management Page Logic (/system-management) ---
@@ -1504,28 +1519,25 @@ function handleAddAdmin(e) {
 }
 
 async function initializeSystemManagementPage() {
+    const token = getAuthToken(); // Get token
     try {
-        const res = await fetch('/api/system-data');
+        const res = await fetch('/api/system-data', {
+            headers: { 'Authorization': `Bearer ${token}` } // Send token
+        });
         if (!res.ok) throw new Error('Failed to fetch system data');
         const data = await res.json();
-
         sysAdmins = data.admins || [];
         sysAuditLogs = data.auditLogs || [];
         sysMlModels = data.mlModels || [];
         sysEdgeNodes = data.edgeNodes || [];
-
-        // Initial render
         renderSysStatCards();
         renderAdminTable();
         renderSysEdgeNodes();
         renderMLModelsTable();
         renderAuditLogsTable();
-
     } catch (error) {
         console.error("Error fetching system data:", error);
     }
-
-    // Modal listeners
     document.getElementById('add-admin-btn').addEventListener('click', () => {
         document.getElementById('add-admin-modal').style.display = 'flex';
     });
@@ -1534,7 +1546,6 @@ async function initializeSystemManagementPage() {
         document.getElementById('modal-error-message').style.display = 'none';
     });
     document.getElementById('add-admin-form').addEventListener('submit', handleAddAdmin);
-
     document.getElementById('upload-model-btn').addEventListener('click', () => {
         console.log('ML model uploaded successfully. Deployment in progress...');
     });

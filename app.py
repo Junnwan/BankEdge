@@ -5,6 +5,7 @@ from flask import Flask, render_template
 from controllers.api_controller import api_bp
 from extensions import db, bcrypt  # <-- NEW: Import extensions
 from models import User, Device, Transaction  # <-- NEW: Import models
+from flask_jwt_extended import JWTManager
 
 app = Flask(__name__)
 
@@ -13,6 +14,13 @@ basedir = os.path.abspath(os.path.dirname(__file__))
 # This configures a simple SQLite database file named 'bankedge.db' in your project root
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'bankedge.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# --- NEW: JWT Configuration ---
+# This is a secret key to sign your tokens.
+# Replace "super-secret-key" with a long, random string.
+# You can generate one using: python -c "import secrets; print(secrets.token_hex(32))"
+app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET_KEY', 'super-secret-key-change-me')
+jwt = JWTManager(app)
 
 # --- NEW: Initialize Extensions ---
 db.init_app(app)

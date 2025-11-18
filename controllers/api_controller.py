@@ -3,6 +3,7 @@ import os
 import stripe
 from flask import Blueprint, jsonify, request
 from datetime import datetime, timedelta, timezone
+from flask_jwt_extended import create_access_token
 
 try:
     # New versions (v7+)
@@ -13,6 +14,8 @@ except AttributeError:
 
 from extensions import db, bcrypt
 from models import User, Device, Transaction
+
+from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt, create_access_token
 
 api_bp = Blueprint('api', __name__, url_prefix='/api')
 
@@ -31,18 +34,16 @@ STRIPE_PUBLISHABLE_KEY = os.environ.get('STRIPE_PUBLISHABLE_KEY', '')
 locations = ["Johor", "Kedah", "Kelantan", "Malacca", "NegeriSembilan", "Pahang", "Penang", "Perak", "Perlis", "Sabah", "Sarawak", "Selangor", "Terengganu", "KL", "Labuan", "Putrajaya"]
 merchants = ['Maybank', 'CIMB Bank', 'Public Bank', 'RHB Bank', 'GrabPay', 'FPX Payment']
 
-def generate_edge_devices():
+def generate_edge_devices_mock_stats():
     devices = []
     for i, loc in enumerate(locations):
-
-        # --- All nodes are online by default ---
-        status = 'online'
-
+        # This function NOW ONLY generates dynamic stats
+        # The 'status' is now controlled by the database
         devices.append({
             'id': f'edge-{i + 1}',
             'name': f'Edge Node {loc}',
             'location': f'{loc}, Malaysia',
-            'status': status,
+            # 'status': 'online', # <-- This is now in the DB
             'latency': random.uniform(10, 40),
             'load': random.uniform(10, 90),
             'transactionsPerSec': random.uniform(50, 250),
@@ -158,8 +159,55 @@ persisted_transactions = []
 
 # --- API Routes ---
 
+# --- NEW: Secure Login Route ---
+@api_bp.route('/login', methods=['POST'])
+def login():
+    data = request.get_json()
+    username = data.get('username')
+    password = data.get('password')
+
+    if not username or not password:
+        return jsonify({"error": "Username and password are required"}), 400
+
+    # 1. Find the user in the database
+    user = User.query.filter_by(username=username).first()
+
+    # 2. Check if user exists and password is correct
+    if not user or not user.check_password(password):
+        return jsonify({"error": "Invalid username or password"}), 401 # 401 Unauthorized
+
+    # 3. Create and return a new access token (JWT)
+    # We add the user's role and location to the token
+    # This is much more secure than getting it from the username in JS
+
+    # Re-create the getLocation logic from JS
+    user_location = 'Global HQ'
+    if user.role == 'admin':
+        match = username.split('@')[0].split('.')
+        if len(match) > 1:
+            user_location = match[1].upper() # 'kl' -> 'KL'
+        else:
+            user_location = 'Unknown' # Fallback
+
+    additional_claims = {
+        "role": user.role,
+        "userLocation": user_location
+    }
+
+    access_token = create_access_token(
+        identity=username,
+        additional_claims=additional_claims
+    )
+
+    return jsonify(
+        access_token=access_token,
+        role=user.role,
+        userLocation=user_location
+    ), 200
+
 # NEW route to send publishable key to frontend
 @api_bp.route('/config')
+@jwt_required()
 def get_config():
     return jsonify({
         'publishableKey': STRIPE_PUBLISHABLE_KEY
@@ -167,20 +215,54 @@ def get_config():
 
 # Dashboard Page
 @api_bp.route('/dashboard-data')
+@jwt_required()
 def dashboard_data():
+    # --- MODIFIED: Use the new hybrid data function ---
+    devices_list = get_hybrid_devices()
     return jsonify({
-        'devices': generate_edge_devices(),
+        'devices': devices_list,
         'latency': generate_latency_history(),
-        'transactions': generate_transactions(5)
+        'transactions': generate_transactions(5) # This will be replaced in Phase 4
     })
+
+# --- NEW: Helper function to get DB data + mock stats ---
+def get_hybrid_devices():
+    # 1. Get mock stats (latency, load, etc.)
+    mock_stats_list = generate_edge_devices_mock_stats()
+    mock_stats_map = {d['id']: d for d in mock_stats_list}
+
+    # 2. Get persistent data from DB (id, name, status, etc.)
+    db_devices = Device.query.all()
+
+    final_devices_list = []
+    for device in db_devices:
+        mock_data = mock_stats_map.get(device.id, {})
+        final_devices_list.append({
+            'id': device.id,
+            'name': device.name,
+            'location': device.location,
+            'status': device.status,  # <-- The REAL status from the DB
+            'region': device.region,
+            # Merge mock data
+            'latency': mock_data.get('latency', 0),
+            'load': mock_data.get('load', 0),
+            'transactionsPerSec': mock_data.get('transactionsPerSec', 0),
+            'lastSync': mock_data.get('lastSync', datetime.now(timezone.utc).isoformat()),
+            'syncStatus': mock_data.get('syncStatus', 'unknown')
+        })
+    return final_devices_list
 
 # Edge Devices Page
 @api_bp.route('/devices')
+@jwt_required()
 def devices():
-    return jsonify(generate_edge_devices())
+    # This route now returns our hybrid data
+    devices_list = get_hybrid_devices()
+    return jsonify(devices_list)
 
 # ML Insights Page
 @api_bp.route('/ml-data')
+@jwt_required()
 def ml_data():
     return jsonify({
         'metrics': generate_ml_metrics(),
@@ -190,37 +272,40 @@ def ml_data():
 
 # Transactions Page
 @api_bp.route('/transactions')
+@jwt_required()
 def transactions_route():
-    # Return persisted transactions first, then fill with mock data
-    # This keeps our real transactions at the top of the list
     mock_count = 30 - len(persisted_transactions)
     mock_transactions = generate_transactions(mock_count) if mock_count > 0 else []
     return jsonify(persisted_transactions + mock_transactions)
 
 # System Management Page
 @api_bp.route('/system-data')
+@jwt_required()
 def system_data():
+    # Only allow SuperAdmins to access this
+    claims = get_jwt()
+    if claims.get('role') != 'superadmin':
+        return jsonify({"error": "Forbidden"}), 403
+
     return jsonify({
         'admins': get_system_admins(),
         'auditLogs': get_audit_logs(),
         'mlModels': get_ml_models(),
-        'edgeNodes': generate_edge_devices()
+        'edgeNodes': get_hybrid_devices() # Use real status
     })
 
 # Single Device Sync (for Edge Devices Page)
 @api_bp.route('/devices/sync/<device_id>', methods=['POST'])
+@jwt_required()
 def sync_device(device_id):
-    # Find the original device to get its loc
-    all_devices = generate_edge_devices()
+    # (This is still a mock, but it's protected)
+    all_devices = generate_edge_devices_mock_stats()
     original_device = next((d for d in all_devices if d['id'] == device_id), None)
-
     if not original_device:
         return jsonify({'error': 'Device not found'}), 404
-
-    # Simulate syncing by generating a new device with 'online' and 'synced' status
     synced_device = {
-        **original_device, # Keep location and name
-        'status': 'online',
+        **original_device,
+        'status': 'online', # This should update the DB, but we'll do that in the toggle route
         'latency': random.uniform(10, 40),
         'load': random.uniform(10, 90),
         'transactionsPerSec': random.uniform(50, 250),
@@ -231,6 +316,7 @@ def sync_device(device_id):
 
 # --- NEW: Stripe Checkout Session Endpoint ---
 @api_bp.route('/create-checkout-session', methods=['POST'])
+@jwt_required()
 def create_checkout_session():
     data = request.get_json()
     try:
@@ -238,28 +324,21 @@ def create_checkout_session():
         if not amount_str:
             return jsonify({'error': 'Amount is required'}), 400
 
-        # Convert amount from RM (e.g., "10.50") to cents (e.g., 1050)
         amount_in_cents = int(float(amount_str) * 100)
 
-        # Define success and cancel URLs
-        # We'll add parameters to tell our frontend what happened
         base_url = request.host_url.rstrip('/')
         success_url = f"{base_url}/transactions?status=success&session_id={{CHECKOUT_SESSION_ID}}"
         cancel_url = f"{base_url}/transactions?status=cancel"
 
-        # Create a Checkout Session with Stripe
         session = stripe.checkout.Session.create(
-            payment_method_types=[
-                'card',
-                'fpx',
-                'grabpay'
-            ],
+            payment_method_types=[ 'card', 'fpx', 'grabpay', 'shopeepay' ],
             line_items=[{
                 'price_data': {
                     'currency': 'myr',
                     'product_data': {
                         'name': 'BankEdge Transfer',
                         'description': data.get('reference', 'Demo Payment'),
+                        'metadata': { 'recipient_account': data.get('recipientAccount') }
                     },
                     'unit_amount': amount_in_cents,
                 },
@@ -268,32 +347,28 @@ def create_checkout_session():
             mode='payment',
             success_url=success_url,
             cancel_url=cancel_url,
-            metadata={
-                'recipient_account': data.get('recipientAccount')
-            }
+            metadata={ 'recipient_account': data.get('recipientAccount') }
         )
 
-        # Add a 'pending' transaction to our in-memory list
         new_txn = {
-            'id': session.id, # Use the Stripe Session ID as the transaction ID
+            'id': session.id,
             'amount': float(amount_str),
             'type': 'Transfer',
             'mlPrediction': 'pending',
             'stripeStatus': 'processing',
             'confidence': 1.0,
             'timestamp': datetime.now(timezone.utc).isoformat(),
-            'deviceId': 'edge-13', # Placeholder
+            'deviceId': 'edge-13',
             'processedAt': 'cloud',
             'latency': random.uniform(70, 120),
             'customerId': f'cus_demo_{random.randint(1000,9999)}',
             'merchantName': data.get('recipientAccount', 'Stripe Payment')
         }
-        persisted_transactions.insert(0, new_txn) # Add to top of the list
+        persisted_transactions.insert(0, new_txn)
 
-        # Return the Session ID
         return jsonify({'sessionId': session.id})
 
-    except stripe.error.StripeError as e:
+    except StripeError as e:
         return jsonify({'error': str(e)}), 400
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -301,8 +376,6 @@ def create_checkout_session():
 # NEW (Simulated) Webhook Endpoint
 @api_bp.route('/webhook/stripe', methods=['POST'])
 def stripe_webhook():
-    # This is a MOCK webhook. In a real app, Stripe would call this.
-    # For now, we'll simulate the "success" event
     data = request.get_json()
     session_id = data.get('session_id')
 
@@ -318,17 +391,13 @@ def stripe_webhook():
 @api_bp.route('/init-db', methods=['GET'])
 def init_db():
     try:
-        # Drop all existing tables (for a clean start) and create new ones
         db.drop_all()
         db.create_all()
 
-        # --- Create Users ---
-        # Create SuperAdmin
         superadmin = User(username='superadmin@bankedge.com', role='superadmin')
         superadmin.set_password('SuperAdmin@123')
         db.session.add(superadmin)
 
-        # Create all Edge Admins
         all_admin_usernames = [
             'admin.johor@bankedge.com', 'admin.kedah@bankedge.com', 'admin.kelantan@bankedge.com',
             'admin.malacca@bankedge.com', 'admin.negerisembilan@bankedge.com', 'admin.pahang@bankedge.com',
@@ -343,22 +412,19 @@ def init_db():
             admin.set_password('Admin@123')
             db.session.add(admin)
 
-        # --- Create Devices ---
-        devices_data = generate_edge_devices() # Use our mock generator
+        devices_data = generate_edge_devices_mock_stats() # Use renamed function
         for dev_data in devices_data:
             device = Device(
                 id=dev_data['id'],
                 name=dev_data['name'],
                 location=dev_data['location'],
-                status=dev_data['status'],
+                status='online', # All devices start online
                 region=dev_data['region']
             )
             db.session.add(device)
 
-        # --- Create Transactions ---
-        transactions_data = generate_transactions(50) # Add 50 mock transactions
+        transactions_data = generate_transactions(50)
         for txn_data in transactions_data:
-            # Find the matching device in the session (this will work because we added them first)
             device = db.session.get(Device, txn_data['deviceId'])
             if device:
                 txn = Transaction(
@@ -369,15 +435,49 @@ def init_db():
                     processed_at=txn_data['processedAt'],
                     timestamp=datetime.fromisoformat(txn_data['timestamp']),
                     merchant_name=txn_data['merchantName'],
-                    device_id=device.id # Link to the device
+                    device_id=device.id
                 )
                 db.session.add(txn)
 
-        # Commit all changes
         db.session.commit()
 
         return jsonify({'message': 'Database initialized and seeded successfully!'}), 200
 
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+# --- NEW: Persistent Device Status Toggle ---
+@api_bp.route('/devices/toggle-status/<device_id>', methods=['POST'])
+@jwt_required()
+def toggle_device_status(device_id):
+    # 1. Find the device in the database
+    device = db.session.get(Device, device_id)
+    if not device:
+        return jsonify({"error": "Device not found"}), 404
+
+    # 2. Check permissions
+    claims = get_jwt()
+    role = claims.get('role')
+    user_location = claims.get('userLocation')
+
+    # Check if user is SuperAdmin OR if they are an Admin for this specific device
+    if role != 'superadmin' and user_location != device.location.upper():
+        return jsonify({"error": "Forbidden"}), 403
+
+    # 3. Toggle the status
+    try:
+        device.status = 'offline' if device.status == 'online' else 'online'
+        db.session.commit()
+
+        # 4. Return the updated device data
+        return jsonify({
+            'id': device.id,
+            'name': device.name,
+            'location': device.location,
+            'status': device.status,
+            'region': device.region
+        })
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
