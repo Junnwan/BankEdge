@@ -1,7 +1,7 @@
 from extensions import db, bcrypt
 from datetime import datetime, timezone
 
-# Model for our Admin/SuperAdmin users
+# User Model (Admins & SuperAdmins)
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(150), unique=True, nullable=False)
@@ -14,27 +14,26 @@ class User(db.Model):
     def check_password(self, password):
         return bcrypt.check_password_hash(self.password_hash, password)
 
-# Model for our Edge Devices
+# Edge Device Model
 class Device(db.Model):
-    id = db.Column(db.String(50), primary_key=True) # Use our "edge-1" style IDs
+    id = db.Column(db.String(50), primary_key=True) # e.g., 'edge-1'
     name = db.Column(db.String(100), nullable=False)
     location = db.Column(db.String(100), nullable=False)
     status = db.Column(db.String(20), nullable=False, default='online') # 'online' or 'offline'
     region = db.Column(db.String(50))
 
-    # This creates a "one-to-many" relationship
-    # We can now access 'device.transactions' to get all transactions for a device
+    # Relationship: One Device has Many Transactions
     transactions = db.relationship('Transaction', backref='device', lazy=True)
 
-# Model for our Transactions
+# Transaction Model
 class Transaction(db.Model):
-    id = db.Column(db.String(100), primary_key=True) # For Stripe's 'txn_...' or 'cs_test_...' IDs
+    id = db.Column(db.String(100), primary_key=True) # Stripe ID or generated ID
     amount = db.Column(db.Float, nullable=False)
-    stripe_status = db.Column(db.String(50), nullable=False, default='pending') # 'succeeded', 'failed', 'pending'
-    ml_prediction = db.Column(db.String(50), default='pending') # 'approved', 'flagged', 'pending'
-    processed_at = db.Column(db.String(20), default='cloud') # 'edge' or 'cloud'
+    stripe_status = db.Column(db.String(50), nullable=False, default='pending')
+    ml_prediction = db.Column(db.String(50), default='pending')
+    processed_at = db.Column(db.String(20), default='cloud')
     timestamp = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
     merchant_name = db.Column(db.String(100))
 
-    # This links the transaction to a device
+    # Foreign Key: Link to Device table
     device_id = db.Column(db.String(50), db.ForeignKey('device.id'), nullable=True)

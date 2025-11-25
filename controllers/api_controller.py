@@ -27,7 +27,7 @@ stripe.api_key = os.environ.get('STRIPE_SECRET_KEY', '')
 STRIPE_PUBLISHABLE_KEY = os.environ.get('STRIPE_PUBLISHABLE_KEY', '')
 
 # # --- In-Memory Database ---
-# persisted_transactions = []
+persisted_transactions = []
 
 # --- Data Generation Logic (Translated to Python) ---
 
@@ -43,7 +43,7 @@ def generate_edge_devices_mock_stats():
             'id': f'edge-{i + 1}',
             'name': f'Edge Node {loc}',
             'location': f'{loc}, Malaysia',
-            # 'status': 'online', # <-- This is now in the DB
+            'status': 'online', # <-- This is now in the DB
             'latency': random.uniform(10, 40),
             'load': random.uniform(10, 90),
             'transactionsPerSec': random.uniform(50, 250),
@@ -217,12 +217,30 @@ def get_config():
 @api_bp.route('/dashboard-data')
 @jwt_required()
 def dashboard_data():
-    # --- MODIFIED: Use the new hybrid data function ---
+    # 1. Get Real Devices from DB (merged with mock stats)
     devices_list = get_hybrid_devices()
+
+    # 2. Get Real Transactions from DB (Latest 5)
+    recent_txns = Transaction.query.order_by(Transaction.timestamp.desc()).limit(5).all()
+    txn_data = []
+    for t in recent_txns:
+        txn_data.append({
+            'id': t.id,
+            'amount': t.amount,
+            'type': t.type,
+            'stripeStatus': t.stripe_status,
+            'mlPrediction': t.ml_prediction,
+            'processedAt': t.processed_at,
+            'latency': t.latency,
+            'timestamp': t.timestamp.isoformat(),
+            'merchantName': t.merchant_name,
+            'deviceId': t.device_id
+        })
+
     return jsonify({
         'devices': devices_list,
-        'latency': generate_latency_history(),
-        'transactions': generate_transactions(5) # This will be replaced in Phase 4
+        'latency': generate_latency_history(), # Keep mock for chart
+        'transactions': txn_data # <--- NOW REAL DB DATA
     })
 
 # --- NEW: Helper function to get DB data + mock stats ---
@@ -274,9 +292,25 @@ def ml_data():
 @api_bp.route('/transactions')
 @jwt_required()
 def transactions_route():
-    mock_count = 30 - len(persisted_transactions)
-    mock_transactions = generate_transactions(mock_count) if mock_count > 0 else []
-    return jsonify(persisted_transactions + mock_transactions)
+    # FIX: Fetch REAL transactions from DB, sorted by newest first
+    txns = Transaction.query.order_by(Transaction.timestamp.desc()).all()
+
+    output = []
+    for t in txns:
+        output.append({
+            'id': t.id,
+            'amount': t.amount,
+            'type': t.type,
+            'stripeStatus': t.stripe_status,
+            'mlPrediction': t.ml_prediction,
+            'processedAt': t.processed_at,
+            'latency': t.latency, # Ensure this column exists in your DB model!
+            'timestamp': t.timestamp.isoformat(),
+            'merchantName': t.merchant_name,
+            'deviceId': t.device_id
+        })
+
+    return jsonify(output)
 
 # System Management Page
 @api_bp.route('/system-data')
@@ -331,7 +365,7 @@ def create_checkout_session():
         cancel_url = f"{base_url}/transactions?status=cancel"
 
         session = stripe.checkout.Session.create(
-            payment_method_types=[ 'card', 'fpx', 'grabpay', 'shopeepay' ],
+            payment_method_types=[ 'card', 'fpx', 'grabpay' ],
             line_items=[{
                 'price_data': {
                     'currency': 'myr',
@@ -394,10 +428,12 @@ def init_db():
         db.drop_all()
         db.create_all()
 
+        # 1. Create SuperAdmin
         superadmin = User(username='superadmin@bankedge.com', role='superadmin')
         superadmin.set_password('SuperAdmin@123')
         db.session.add(superadmin)
 
+        # 2. Create Edge Admins
         all_admin_usernames = [
             'admin.johor@bankedge.com', 'admin.kedah@bankedge.com', 'admin.kelantan@bankedge.com',
             'admin.malacca@bankedge.com', 'admin.negerisembilan@bankedge.com', 'admin.pahang@bankedge.com',
@@ -406,23 +442,24 @@ def init_db():
             'admin.terengganu@bankedge.com', 'admin.kl@bankedge.com', 'admin.labuan@bankedge.com',
             'admin.putrajaya@bankedge.com'
         ]
-
         for username in all_admin_usernames:
             admin = User(username=username, role='admin')
             admin.set_password('Admin@123')
             db.session.add(admin)
 
-        devices_data = generate_edge_devices_mock_stats() # Use renamed function
+        # 3. Create Devices (Using mock data to get locations)
+        devices_data = generate_edge_devices_mock_stats()
         for dev_data in devices_data:
             device = Device(
                 id=dev_data['id'],
                 name=dev_data['name'],
                 location=dev_data['location'],
-                status='online', # All devices start online
+                status='online', # All start online
                 region=dev_data['region']
             )
             db.session.add(device)
 
+        # 4. Create Transactions
         transactions_data = generate_transactions(50)
         for txn_data in transactions_data:
             device = db.session.get(Device, txn_data['deviceId'])

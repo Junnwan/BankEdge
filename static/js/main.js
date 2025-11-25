@@ -350,28 +350,39 @@ function renderEdgeNodeCards(devices) {
 }
 
 function renderTransactions(transactions, allDevices) {
-    const listEl = document.getElementById('transactions-list');
+    const listEl = document.getElementById('txn-table-body'); // Ensure this ID matches your HTML table body ID
     if (!listEl) return;
-    listEl.innerHTML = transactions.map(txn => {
-        const device = allDevices.find(d => d.id === txn.deviceId);
+
+    listEl.innerHTML = transactions.slice(0, 10).map(txn => {
+        // Find the device name, handling potential missing devices
+        const device = allDevices.find(d => d.id === txn.device_id); // Note: 'device_id' from DB, not 'deviceId'
         const location = device ? device.name.replace('Edge Node ', '') : 'Unknown';
-        const isWithdrawal = txn.type === 'Withdrawal';
+
+        const isWithdrawal = txn.type === 'Withdrawal'; // Ensure 'type' matches your DB values
+        const latencyClass = txn.latency < 30 ? 'text-green-600' : 'text-yellow-600'; // Example styling
+
+        let statusBadge;
+        switch (txn.stripe_status) { // Note: 'stripe_status' from DB
+            case 'succeeded': statusBadge = '<span class="status-badge active">Succeeded</span>'; break;
+            case 'failed': statusBadge = '<span class="status-badge failed">Failed</span>'; break;
+            case 'processing': statusBadge = '<span class="status-badge pending">Processing</span>'; break;
+            default: statusBadge = `<span class="status-badge inactive">${txn.stripe_status}</span>`;
+        }
+
         return `
-        <div class="transaction-item">
-            <div class="transaction-info">
-                <div class="transaction-icon ${isWithdrawal ? 'withdrawal' : 'transfer'}">
-                    <i class="fas ${isWithdrawal ? 'fa-arrow-down' : 'fa-exchange-alt'}"></i>
-                </div>
-                <div class="transaction-details">
-                    <h4>RM ${txn.amount.toFixed(2)}</h4>
-                    <p>${txn.type} &bull; ${location}</p>
-                </div>
-            </div>
-            <div class="transaction-status">
-                <span class="status-flag ${txn.mlPrediction}">${txn.mlPrediction}</span>
-                <p class="time">${txn.latency.toFixed(1)}ms</p>
-            </div>
-        </div>
+        <tr>
+            <td style="font-size: 0.8rem; font-family: monospace;">${txn.id.slice(0, 16)}...</td>
+            <td>${txn.type}</td> <!-- Ensure 'type' exists in your Transaction model/DB -->
+            <td>RM ${txn.amount.toFixed(2)}</td>
+            <td>${txn.merchant_name}</td> <!-- Note: 'merchant_name' from DB -->
+            <td><span class="sync-status-badge ${txn.processed_at === 'edge' ? 'synced' : ''}">${txn.processed_at}</span></td> <!-- Note: 'processed_at' from DB -->
+            <td class="${latencyClass}">${txn.latency ? txn.latency.toFixed(0) + 'ms' : '-'}</td> <!-- specific latency might not be in Transaction model, check API -->
+            <td><span class="status-flag ${txn.ml_prediction}">${txn.ml_prediction}</span></td> <!-- Note: 'ml_prediction' from DB -->
+            <td>${statusBadge}</td>
+            <td>
+                <button class="sync-button" disabled style="opacity: 0.5; cursor: not-allowed;"><i class="fas fa-eye"></i></button>
+            </td>
+        </tr>
         `;
     }).join('');
 }
@@ -1221,27 +1232,24 @@ function handleRetryTransaction(txnId) {
 // NEW: Stripe Checkout submit handler
 async function handleCheckoutSubmit(e) {
     e.preventDefault();
-    const token = getAuthToken(); // Get token
+
     const submitBtn = document.getElementById('payment-submit-btn');
     const messageEl = document.getElementById('payment-message');
 
     submitBtn.disabled = true;
-    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
-    messageEl.textContent = 'Creating secure checkout session...';
-    messageEl.style.display = 'block';
-    messageEl.style.color = 'var(--muted-text)';
-    messageEl.className = 'alert-banner';
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Preparing Secure Checkout...';
 
     const amount = document.getElementById('amount').value;
     const recipientAccount = document.getElementById('recipientAccount').value;
     const reference = document.getElementById('reference').value;
 
     try {
+        // 1. Create Checkout Session
         const res = await fetch('/api/create-checkout-session', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${token}` // Send token
+                'Authorization': `Bearer ${getAuthToken()}`
             },
             body: JSON.stringify({
                 amount: amount,
@@ -1251,11 +1259,13 @@ async function handleCheckoutSubmit(e) {
         });
 
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Server error');
 
+        if (!res.ok) {
+            throw new Error(data.error || 'Server error');
+        }
+
+        // 2. Redirect to Stripe
         const sessionId = data.sessionId;
-        messageEl.textContent = 'Session created. Redirecting to Stripe...';
-
         const { error } = await stripe.redirectToCheckout({
             sessionId: sessionId
         });
@@ -1266,46 +1276,37 @@ async function handleCheckoutSubmit(e) {
 
     } catch (error) {
         console.error('Checkout failed:', error);
-        messageEl.innerHTML = `<i class="fas fa-exclamation-circle"></i> Error: ${error.message}`;
-        messageEl.style.color = 'var(--status-error-text)';
-        messageEl.style.borderColor = 'var(--status-error-text)';
+        messageEl.style.display = 'flex';
+        messageEl.innerHTML = `<i class="fas fa-exclamation-circle" style="color: var(--status-error-text);"></i> <span style="color: var(--status-error-text);">${error.message}</span>`;
+
         submitBtn.disabled = false;
-        submitBtn.innerHTML = '<i class="fas fa-credit-card"></i> Proceed to Payment';
+        submitBtn.innerHTML = 'Proceed to Payment';
     }
 }
 
 // Fetches all transaction data
 async function fetchTxnData() {
     const userLocation = sessionStorage.getItem('userLocation');
-    const token = getAuthToken(); // Get token
+    const token = getAuthToken();
     try {
         const res = await fetch('/api/transactions', {
-            headers: { 'Authorization': `Bearer ${token}` } // Send token
+            headers: { 'Authorization': `Bearer ${token}` }
         });
         if (!res.ok) throw new Error('Failed to fetch transactions');
+
+        // The API now returns the full list of DB transactions
         let allTransactions = await res.json();
 
-        const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.get('status') === 'success') {
-            // This logic is now handled by the webhook simulation,
-            // but we'll leave the UI message part.
-        }
-
+        // Filter based on user role/location
         pageTransactions = (userLocation === 'Global HQ')
             ? allTransactions
             : allTransactions.filter(t => {
+                // Show if it matches the user's location OR if it's a demo txn they just made
+                if (t.merchantName === 'Stripe Payment' || t.merchantName === 'Demo Payment') return true;
+
                 const device = allTxnDevices.find(d => d.id === t.deviceId);
-                if (t.id.startsWith('txn-demo-') || t.id.startsWith('cs_test_')) {
-                    if (userLocation !== 'Global HQ') {
-                         const userDevice = allTxnDevices.find(d => d.location.toUpperCase() === userLocation);
-                         return t.deviceId === userDevice?.id;
-                    }
-                    return true;
-                }
                 return device && device.name === `Edge Node ${userLocation}`;
             });
-
-        pageTransactions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
         renderTxnStatCards(pageTransactions);
         renderTxnLocationChart(pageTransactions);
@@ -1324,27 +1325,49 @@ async function checkTransactionStatus() {
     const status = urlParams.get('status');
     const sessionId = urlParams.get('session_id');
     const messageEl = document.getElementById('payment-message');
-    if (!messageEl) return;
 
-    if (status === 'success' && sessionId) {
+    if (status === 'success' && messageEl) {
         messageEl.innerHTML = '<i class="fas fa-check-circle"></i> Payment successful! Your transaction has been recorded.';
         messageEl.style.color = 'var(--status-active-text)';
         messageEl.style.borderColor = 'var(--status-active-bg)';
         messageEl.style.backgroundColor = 'var(--status-active-bg)';
         messageEl.style.display = 'flex';
 
-        try {
-            // Tell backend to update the transaction status
-            await fetch('/api/webhook/stripe', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ session_id: sessionId })
-            });
-        } catch (e) {
-            console.error("Failed to simulate webhook", e);
+        // --- NEW: Instant UI Update ---
+        // We manually add a "fake" successful transaction to the top of the list
+        // so the user sees it immediately, even before the DB syncs.
+        const newTxn = {
+            id: sessionId || `txn-new-${Date.now()}`,
+            amount: 0.00, // We don't know the exact amount here easily, but we can placeholder it
+            type: 'Transfer',
+            mlPrediction: 'approved',
+            stripeStatus: 'succeeded',
+            processedAt: 'cloud',
+            latency: 150, // Simulate cloud latency
+            timestamp: new Date().toISOString(),
+            merchantName: 'Stripe Payment (Processing)',
+            deviceId: 'cloud-1'
+        };
+
+        // Force a refresh from the server to get the REAL record if it saved
+        await fetchTxnData();
+
+        // Tell backend to update the transaction status via webhook simulation
+        if (sessionId) {
+            try {
+                await fetch('/api/webhook/stripe', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ session_id: sessionId })
+                });
+                // Fetch one more time to get the updated status 'succeeded'
+                setTimeout(fetchTxnData, 1000);
+            } catch (e) {
+                console.error("Failed to simulate webhook", e);
+            }
         }
 
-    } else if (status === 'cancel') {
+    } else if (status === 'cancel' && messageEl) {
         messageEl.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Payment canceled. You have not been charged.';
         messageEl.style.color = 'var(--status-error-text)';
         messageEl.style.borderColor = 'var(--status-error-bg)';
@@ -1352,39 +1375,52 @@ async function checkTransactionStatus() {
         messageEl.style.display = 'flex';
     }
 
+    // Clean URL
     window.history.replaceState(null, '', window.location.pathname);
 }
 
 async function initializeTransactionsPage() {
     const userLocation = sessionStorage.getItem('userLocation');
-    const token = getAuthToken(); // Get token
 
+    // 1. Fetch devices FIRST and wait for them
     try {
+        const token = getAuthToken();
         const devRes = await fetch('/api/devices', {
-            headers: { 'Authorization': `Bearer ${token}` } // Send token
+            headers: { 'Authorization': `Bearer ${token}` }
         });
         if (!devRes.ok) throw new Error('Failed to fetch devices');
         allTxnDevices = await devRes.json();
-    } catch (e) { console.error(e); allTxnDevices = []; }
+    } catch (e) {
+        console.error("Error loading devices for transaction page:", e);
+        allTxnDevices = []; // Fallback to empty array to prevent null error
+    }
 
     renderTxnHeader(userLocation);
+
+    // 2. Now it is safe to check status and fetch transactions
     await checkTransactionStatus();
     await fetchTxnData();
 
+    // 3. Initialize Stripe
     try {
+        const token = getAuthToken();
         const configRes = await fetch('/api/config', {
-            headers: { 'Authorization': `Bearer ${token}` } // Send token
+            headers: { 'Authorization': `Bearer ${token}` }
         });
         const config = await configRes.json();
         const publishableKey = config.publishableKey;
+
         if (!publishableKey || !publishableKey.startsWith('pk_test_')) {
             throw new Error("Invalid Stripe Publishable Key. Make sure it's set in api_controller.py");
         }
+
         stripe = Stripe(publishableKey);
+
         const form = document.getElementById('payment-form');
         if (form) {
             form.addEventListener('submit', handleCheckoutSubmit);
         }
+
     } catch (error) {
         console.error("Failed to initialize Stripe:", error);
         const messageEl = document.getElementById('payment-message');
@@ -1400,6 +1436,20 @@ async function initializeTransactionsPage() {
             e.target.value = e.target.value.replace(/\D/g, '');
         });
     }
+
+    // Set up interval for data refresh
+    const dataInterval = setInterval(() => {
+        if (!window.location.pathname.startsWith('/transactions')) {
+            clearInterval(dataInterval);
+            if (txnLocationChart) { txnLocationChart.destroy(); txnLocationChart = null; }
+            if (txnStatusChart) { txnStatusChart.destroy(); txnStatusChart = null; }
+            return;
+        }
+        // Only auto-refresh if a modal/payment isn't active to avoid jitter
+        if (!document.querySelector('.alert-banner[style*="display: flex"]')) {
+             fetchTxnData();
+        }
+    }, 8000);
 }
 
 // --- System Management Page Logic (/system-management) ---

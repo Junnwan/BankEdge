@@ -3,3 +3,4 @@ stripe
 Flask-SQLAlchemy
 Flask-Bcrypt
 Flask-JWT-Extended
+Flask-Bootstrap
