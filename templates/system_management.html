@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+{% block content %}
+
+<!-- Header -->
+<div class="edge-header" style="display: flex; justify-content: space-between; align-items: center;">
+  <div>
+    <h1 id="sys-page-title">System Management</h1>
+    <p id="sys-page-subtitle" class="card-subtitle">SuperAdmin control panel - Cloud-only secure access</p>
+  </div>
+  <span class="superadmin-badge">
+    <i class="fas fa-star"></i> SuperAdmin Only
+  </span>
+</div>
+
+<!-- Info Alert -->
+<div class="alert-banner">
+  <i class="fas fa-shield-alt"></i>
+  <p>All management operations are processed in the cloud for security. This includes admin account management, ML model uploads, and audit trail access.</p>
+</div>
+
+<!-- Key Metrics -->
+<div class="stat-card-grid" id="sys-stat-cards">
+  <!-- System Stat cards will be injected by main.js -->
+</div>
+
+<!-- Tabs Navigation -->
+<div class="tabs-container">
+  <div class="tabs-list" role="tablist">
+    <button class="tab-trigger active" id="tab-admins" onclick="switchSysTab('admins')" role="tab" aria-selected="true">Admin Accounts</button>
+    <button class="tab-trigger" id="tab-nodes" onclick="switchSysTab('nodes')" role="tab" aria-selected="false">Edge Nodes Status</button>
+    <button class="tab-trigger" id="tab-models" onclick="switchSysTab('models')" role="tab" aria-selected="false">ML Models</button>
+    <button class="tab-trigger" id="tab-audit" onclick="switchSysTab('audit')" role="tab" aria-selected="false">Audit Trail</button>
+  </div>
+
+  <!-- Tab Content: Admin Accounts -->
+  <div class="tab-content active" id="content-admins" role="tabpanel">
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">Admin Account Management</h2>
+        <button class="btn-sync" id="add-admin-btn">
+          <i class="fas fa-user-plus"></i> Add Admin
+        </button>
+      </div>
+      <div class="table-container">
+        <table class="device-table" id="admin-table">
+          <thead>
+            <tr>
+              <th>Username</th>
+              <th>Email</th>
+              <th>Role</th>
+              <th>API Key</th>
+              <th>Last Login</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="admin-table-body">
+            <!-- Admin rows will be injected by main.js -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab Content: Edge Nodes Status -->
+  <div class="tab-content" id="content-nodes" role="tabpanel">
+    <div class="card">
+      <h2 class="card-title">All Edge Nodes Status</h2>
+      <div class="nodes-grid-container" id="sys-edge-nodes-grid">
+        <!-- Edge node cards will be injected by main.js -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab Content: ML Models -->
+  <div class="tab-content" id="content-models" role="tabpanel">
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">ML Model Management</h2>
+        <button class="btn-sync" id="upload-model-btn">
+          <i class="fas fa-upload"></i> Upload New Model
+        </button>
+      </div>
+      <div class="table-container">
+        <table class="device-table" id="model-table">
+          <thead>
+            <tr>
+              <th>Version</th>
+              <th>Uploaded At</th>
+              <th>Uploaded By</th>
+              <th>Size</th>
+              <th>Accuracy</th>
+              <th>Deployed Nodes</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="model-table-body">
+            <!-- Model rows will be injected by main.js -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab Content: Audit Trail -->
+  <div class="tab-content" id="content-audit" role="tabpanel">
+    <div class="card">
+      <h2 class="card-title">Audit Trail & Activity Logs</h2>
+      <div class="table-container">
+        <table class="device-table" id="audit-table">
+          <thead>
+            <tr>
+              <th>Timestamp</th>
+              <th>User</th>
+              <th>Action</th>
+              <th>Resource</th>
+              <th>IP Address</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="audit-table-body">
+            <!-- Audit log rows will be injected by main.js -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- "Add Admin" Modal (Dialog) -->
+<div class="modal-backdrop" id="add-admin-modal" style="display: none;">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2 class="card-title">Create New Admin Account</h2>
+      <button class="modal-close" id="close-modal-btn">&times;</button>
+    </div>
+    <p class="card-subtitle">Add a new admin or superadmin user to the system</p>
+
+    <!-- Validation Error Alert -->
+    <div class="error-alert" id="modal-error-message" style="display: none; margin-bottom: 16px;">
+        <i class="fas fa-exclamation-circle"></i>
+        <span id="modal-error-description">Error placeholder</span>
+    </div>
+
+    <form id="add-admin-form" class="demo-form" style="margin-top: 0;">
+      <div class="form-group">
+        <label for="newAdminUsername">Username (Email)</label>
+        <input type="email" id="newAdminUsername" class="form-input" placeholder="admin.location@bankedge.com" required>
+        <p class="card-subtitle" style="font-size: 0.8rem; margin-top: 4px;">Must end with @bankedge.com</p>
+      </div>
+      <div class="form-group">
+        <label for="newAdminPassword">Password</label>
+        <input type="password" id="newAdminPassword" class="form-input" placeholder="Enter password" required>
+        <p class="card-subtitle" style="font-size: 0.8rem; margin-top: 4px;">Must contain capital, small, and symbol</p>
+      </div>
+      <div class="form-group">
+        <label for="newAdminRole">Role</label>
+        <select id="newAdminRole" class="form-input">
+          <option value="admin">Admin</option>
+          <option value="superadmin">SuperAdmin</option>
+        </select>
+      </div>
+      <div class="modal-footer">
+        <button type="submit" class="btn-sync" id="create-admin-btn">Create Account</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+{% endblock %}

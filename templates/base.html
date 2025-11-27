@@ -3,23 +3,82 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>BankEdge Dashboard</title>
+  <title>{{ title }} - BankEdge Dashboard</title>
+  <!-- Load Inter font and Font Awesome icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <!-- Chart.js library -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- NEW: Stripe.js library -->
+  <script src="https://js.stripe.com/v3/"></script>
 </head>
 <body>
-  <div class="sidebar">
-    <h2>BankEdge</h2>
-    <a href="/">Dashboard</a>
-    <a href="/edge-devices">Edge Devices</a>
-    <a href="/data-sync">Data Sync</a>
-    <a href="/latency">Latency Analytics</a>
-    <a href="/ml-insights">ML Insights</a>
-    <a href="/settings">Settings</a>
-  </div>
+  <div class="dashboard-container">
+    <div class="sidebar">
+      <div class="sidebar-header">
+        BankEdge
+      </div>
 
-  <div class="content">
-    {% block content %}
-    {% endblock %}
+      <nav class="sidebar-nav">
+        <!-- Jinja logic to set the active class based on the current request path -->
+        {% set current_path = request.path %}
+
+        <a href="/dashboard" class="{% if current_path == '/dashboard' %}active{% endif %}">
+          <i class="fas fa-home"></i> Dashboard
+        </a>
+        <a href="/edge-devices" class="{% if current_path == '/edge-devices' %}active{% endif %}">
+          <i class="fas fa-microchip"></i> Edge Devices
+        </a>
+        <a href="/ml-insights" class="{% if current_path == '/ml-insights' %}active{% endif %}">
+          <i class="fas fa-brain"></i> Machine Learning
+        </a>
+        <a href="/transactions" class="{% if current_path == '/transactions' %}active{% endif %}">
+          <i class="fas fa-exchange-alt"></i> Transactions
+        </a>
+
+        <!-- SuperAdmin Link (hidden by default, shown by JS) -->
+        <a href="/system-management" id="nav-system-management" class="{% if current_path == '/system-management' %}active{% endif %}" style="display: none;">
+          <i class="fas fa-shield-alt"></i> System Management
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <!-- Dark Mode Toggle -->
+        <label for="dark-mode-toggle" class="switch">
+          <input type="checkbox" id="dark-mode-toggle">
+          <span class="slider"></span>
+        </label>
+        Dark Mode
+        <!-- Logout Button -->
+        <button onclick="handleLogout()" class="logout-button">
+            <i class="fas fa-sign-out-alt"></i> Logout
+        </button>
+      </div>
+    </div>
+
+    <div class="content">
+      <div class="content-header">
+        <h1 id="dashboard-title">{{ title }}</h1>
+        <div class="header-right">
+          <button class="refresh-button" id="refresh-button" title="Refresh Data">
+              <i class="fas fa-sync-alt"></i> Refresh
+          </button>
+          <div class="header-badges-container" id="header-badges">
+            <!-- Badges will be injected by main.js -->
+          </div>
+          <div id="user-info" class.user-info">
+            <!-- User info will be injected by main.js -->
+          </div>
+        </div>
+      </div>
+
+      <div class="dashboard-content">
+        {% block content %}
+        <!-- Page-specific content goes here -->
+        {% endblock %}
+      </div>
+
+    </div>
   </div>
 
   <script src="{{ url_for('static', filename='js/main.js') }}"></script>

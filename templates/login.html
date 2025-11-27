@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BankEdge Login</title>
+    <!-- Load Inter font and Font Awesome icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="login-page">
+
+    <!-- Left Side - Login Form -->
+    <div class="login-left">
+        <!-- Logo -->
+        <div class="logo-container">
+            <div class="logo-icon">
+                <i class="fas fa-shield-alt"></i>
+            </div>
+            <span class="logo-text">BankEdge</span>
+        </div>
+
+        <div class="login-form-container">
+            <h1>Sign in to BankEdge</h1>
+            <p>Access your Edge Computing Dashboard</p>
+
+            <!-- Error Alert (Initially hidden) -->
+            <div class="error-alert" id="error-message" style="display: none;">
+                <i class="fas fa-exclamation-circle"></i>
+                <span id="error-description">Error placeholder</span>
+            </div>
+
+            <form onsubmit="handleLogin(event)" class="space-y-5">
+                <div class="form-group">
+                    <label for="username">Email</label>
+                    <div class="input-icon-wrapper">
+                        <i class="fas fa-user"></i>
+                        <input
+                            id="username"
+                            type="email"
+                            placeholder="admin.location@bankedge.com"
+                            class="login-input"
+                            required
+                        />
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <div class="input-icon-wrapper">
+                        <i class="fas fa-lock"></i>
+                        <input
+                            id="password"
+                            type="password"
+                            placeholder="Enter your password"
+                            class="login-input"
+                            required
+                        />
+                    </div>
+                </div>
+
+                <button type="submit" class="login-submit-btn" id="login-submit-btn">
+                    SIGN IN
+                </button>
+            </form>
+
+            <!-- Demo Credentials -->
+            <div class="demo-creds">
+                <p class="text-xs">Demo Credentials</p>
+                <div class="cred-box">
+                    <div>SuperAdmin</div>
+                    <div>superadmin@bankedge.com</div>
+                    <div>Password: SuperAdmin@123</div>
+                </div>
+                <div class="cred-box">
+                    <div>Edge Admin</div>
+                    <div>admin.{location}@bankedge.com</div>
+                    <div>Password: Admin@123</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Side - Welcome Section -->
+    <div class="login-right">
+        <div class="welcome-content">
+            <h2>Welcome to BankEdge</h2>
+            <p class="text-lg">
+                Enter your credentials and start your journey with our edge computing ML banking system
+            </p>
+
+            <!-- Feature Pills -->
+            <div class="feature-pills">
+                <span>
+                    <i class="fas fa-server"></i>
+                    16 Edge Nodes
+                </span>
+                <span>
+                    <i class="fas fa-bolt"></i>
+                    ML Powered
+                </span>
+                <span>
+                    <i class="fas fa-cloud"></i>
+                    AWS Cloud
+                </span>
+            </div>
+
+            <!-- Footer -->
+            <div class="welcome-footer">
+                <p>© 2025 BankEdge Research Project</p>
+                <p class="mt-1">Edge Computing & Machine Learning</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Load JavaScript -->
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

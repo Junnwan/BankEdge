@@ -1,2 +1,6 @@
 Flask==3.0.3
-Flask-Bootstrap==3.3.7.1
+stripe
+Flask-SQLAlchemy
+Flask-Bcrypt
+Flask-JWT-Extended
+Flask-Bootstrap

@@ -1,5 +1,45 @@
 {% extends "base.html" %}
 {% block content %}
-<h1>Dashboard</h1>
-<p>Welcome to BankEdge Dashboard. Use the sidebar to navigate between pages.</p>
+
+<!-- Key Metrics Stat Cards -->
+<div class="stat-card-grid" id="stat-card-grid">
+  <!-- Stat cards will be injected by main.js -->
+</div>
+
+<!-- Charts Grid -->
+<div class="chart-grid">
+  <div class="card chart-card">
+    <h2 class="card-title">Latency Comparison</h2>
+    <p class="card-subtitle">Edge vs Hybrid vs Cloud Processing</p>
+    <div class="chart-container">
+      <canvas id="latency-chart"></canvas>
+    </div>
+  </div>
+  <div class="card chart-card">
+    <h2 class="card-title">Device Load Distribution</h2>
+    <p class="card-subtitle">Current load across edge nodes</p>
+    <div class="chart-container">
+      <canvas id="load-chart"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- Edge Nodes Status -->
+<div class="card" id="edge-nodes-section">
+  <h2 class="card-title" id="edge-nodes-title">Edge Nodes Status</h2>
+  <p class="card-subtitle">Real-time monitoring of all edge nodes</p>
+  <div class="nodes-grid-container" id="edge-nodes-grid">
+    <!-- Edge Node cards will be injected by main.js -->
+  </div>
+</div>
+
+<!-- Recent Transactions -->
+<div class="card">
+  <h2 class="card-title">Recent Transactions</h2>
+  <p class="card-subtitle">Latest processed transactions with ML predictions</p>
+  <div class="transaction-list" id="transactions-list">
+    <!-- Transaction items will be injected by main.js -->
+  </div>
+</div>
+
 {% endblock %}
