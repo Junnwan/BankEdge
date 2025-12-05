@@ -1,17 +1,19 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{ title }} - BankEdge Dashboard</title>
   <!-- Load Inter font and Font Awesome icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=18">
   <!-- Chart.js library -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <!-- NEW: Stripe.js library -->
   <script src="https://js.stripe.com/v3/"></script>
 </head>
+
 <body>
   <div class="dashboard-container">
     <div class="sidebar">
@@ -37,10 +39,13 @@
         </a>
 
         <!-- SuperAdmin Link (hidden by default, shown by JS) -->
-        <a href="/system-management" id="nav-system-management" class="{% if current_path == '/system-management' %}active{% endif %}" style="display: none;">
+        <a href="/system-management" id="nav-system-management"
+          class="{% if current_path == '/system-management' %}active{% endif %}" style="display: none;">
           <i class="fas fa-shield-alt"></i> System Management
         </a>
       </nav>
+
+
 
       <div class="sidebar-footer">
         <!-- Dark Mode Toggle -->
@@ -51,24 +56,26 @@
         Dark Mode
         <!-- Logout Button -->
         <button onclick="handleLogout()" class="logout-button">
-            <i class="fas fa-sign-out-alt"></i> Logout
+          <i class="fas fa-sign-out-alt"></i> Logout
         </button>
       </div>
     </div>
 
     <div class="content">
       <div class="content-header">
-        <h1 id="dashboard-title">{{ title }}</h1>
-        <div class="header-right">
-          <button class="refresh-button" id="refresh-button" title="Refresh Data">
-              <i class="fas fa-sync-alt"></i> Refresh
-          </button>
-          <div class="header-badges-container" id="header-badges">
-            <!-- Badges will be injected by main.js -->
+        <div class="header-left">
+          <h1>{{ title }}</h1>
+          <div class="header-subtitle">
+            {% block header_subtitle %}{% endblock %}
           </div>
-          <div id="user-info" class.user-info">
+        </div>
+        <div class="header-right">
+          <div id="user-info" class="user-info">
             <!-- User info will be injected by main.js -->
           </div>
+          <button class="refresh-button" id="refresh-button" title="Refresh Data">
+            <i class="fas fa-sync-alt"></i> Refresh
+          </button>
         </div>
       </div>
 
@@ -81,6 +88,15 @@
     </div>
   </div>
 
-  <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/main.js') }}?v={{ range(1, 10000) | random }}"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      const token = sessionStorage.getItem("authToken");
+      if (!token && window.location.pathname !== "/login") {
+        window.location.href = "/login";
+      }
+    });
+  </script>
 </body>
+
 </html>

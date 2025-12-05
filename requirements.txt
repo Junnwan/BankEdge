@@ -1,6 +1,7 @@
 Flask==3.0.3
-stripe
 Flask-SQLAlchemy
 Flask-Bcrypt
 Flask-JWT-Extended
 Flask-Bootstrap
+stripe
+python-dotenv
