@@ -1371,7 +1371,7 @@ async function handleRetryTransaction(txnId) {
 
 function loadTransactions(page = 1) {
     const token = getAuthToken();
-    fetch(`/api/transactions?page=${page}&per_page=10`, {
+    fetch(`/api/transactions?page=${page}&per_page=5`, {
         headers: { 'Authorization': `Bearer ${token}` }
     })
         .then(response => {
@@ -1461,7 +1461,7 @@ async function initializeStripeElements() {
         currentPaymentIntentId = paymentIntentId;
         console.log("Client secret obtained:", clientSecret);
 
-        const appearance = { theme: 'night', labels: 'floating' };
+        const appearance = { theme: 'stripe', labels: 'floating' };
         elements = stripe.elements({ appearance, clientSecret });
 
         const paymentElement = elements.create('payment', { layout: 'tabs' });

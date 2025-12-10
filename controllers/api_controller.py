@@ -117,7 +117,7 @@ def dashboard_data():
         if claims.get('role') != 'superadmin' and device_id:
             query = query.filter_by(device_id=device_id)
         
-        recent_txns = query.limit(10).all()
+        recent_txns = query.limit(5).all()
         txn_data = []
         for t in recent_txns:
             txn_data.append({

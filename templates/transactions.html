@@ -3,7 +3,7 @@
 {% block content %}
 
 <div class="tabs-container">
-  <div class="card" style="max-width: 600px; margin: 0 auto;">
+  <div class="card">
 
     <!-- Card Header -->
     <div class="card-header">
@@ -100,10 +100,13 @@
       <!-- Pagination Controls -->
       <div id="pagination-controls"
         style="display: flex; justify-content: center; align-items: center; margin-top: 20px; gap: 15px;">
-        <button id="prev-page-btn" class="btn-sync" style="padding: 8px 16px; font-size: 0.9rem;"
-          disabled>Previous</button>
+        <button id="prev-page-btn" class="btn-sync" style="padding: 8px 16px; font-size: 0.9rem;" disabled>
+          <i class="fas fa-chevron-left"></i>
+        </button>
         <span id="page-info" style="font-size: 0.9rem; color: var(--text-color);">Page 1</span>
-        <button id="next-page-btn" class="btn-sync" style="padding: 8px 16px; font-size: 0.9rem;" disabled>Next</button>
+        <button id="next-page-btn" class="btn-sync" style="padding: 8px 16px; font-size: 0.9rem;" disabled>
+          <i class="fas fa-chevron-right"></i>
+        </button>
       </div>
     </div>
   </div>
