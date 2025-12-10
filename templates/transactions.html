@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block header_subtitle %}Integrated Stripe checkout with edge/cloud processing{% endblock %}
+
 {% block content %}
 
 <div class="tabs-container">
@@ -22,6 +23,15 @@
     <form id="payment-form" class="demo-form">
 
       <!-- Recipient -->
+      <div class="form-group" style="margin-bottom: 24px;">
+        <div
+          style="background: var(--sidebar-accent-bg); padding: 12px; border-radius: 8px; display: flex; align-items: center; justify-content: space-between;">
+          <span style="font-weight: 500; font-size: 0.9rem; color: var(--text-color);">Current Balance</span>
+          <span id="user-balance-display" style="font-weight: 700; font-size: 1.1rem; color: var(--teal-primary);">RM
+            --</span>
+        </div>
+      </div>
+
       <div class="form-group">
         <label for="recipientAccount">Recipient Account / Merchant</label>
         <input type="text" id="recipientAccount" class="form-input" placeholder="e.g. 1122003344" required>

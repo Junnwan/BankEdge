@@ -80,6 +80,9 @@ async function fetchDashboardData() {
         // 2. Update Latency Chart
         renderLatencyChart(data.latency);
 
+        // 2.2 Render Stat Cards (Balance)
+        renderDashboardStatCards(data);
+
         // 2.5 Update Load Chart
         if (data.devices) {
             renderLoadChart(data.devices);
@@ -1340,6 +1343,8 @@ function initializeTransactionsPage() {
             }
             // Refresh list
             loadTransactions();
+            // Refresh balance
+            fetchUserBalanceForTxnPage();
         });
     } else {
         loadTransactions();
@@ -1360,6 +1365,9 @@ function initializeTransactionsPage() {
     } else {
         console.error("Payment form not found!");
     }
+
+    // Fetch Balance for Transactions Page (Must be AFTER form clone/replace)
+    fetchUserBalanceForTxnPage();
 }
 
 let currentPage = 1;
@@ -1739,3 +1747,62 @@ function switchSysTab(tabName) {
     document.getElementById(`tab-${tabName}`).classList.add('active');
     document.getElementById(`content-${tabName}`).classList.add('active');
 }
+
+function renderDashboardStatCards(data) {
+    const grid = document.getElementById('stat-card-grid');
+    if (!grid) return;
+
+    // Use userBalance from API, default to 0
+    const balance = data.userBalance != null ? data.userBalance : 0.0;
+
+    // Calculate other stats if available
+    const txnCount = data.transactions ? data.transactions.length : 0;
+
+    grid.innerHTML = `
+        <div class="stat-card">
+            <div class="stat-card-info">
+                <h3>Current Balance</h3>
+                <p class="value">RM ${balance.toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                <p class="subtitle positive">Available Funds</p>
+            </div>
+            <div class="stat-card-icon icon-bg-green"><i class="fas fa-wallet"></i></div>
+        </div>
+        <div class="stat-card">
+             <div class="stat-card-info">
+                <h3>Recent Activity</h3>
+                <p class="value">${txnCount}</p>
+                <p class="subtitle">Transactions</p>
+            </div>
+            <div class="stat-card-icon icon-bg-blue"><i class="fas fa-list"></i></div>
+        </div>
+    `;
+}
+
+function fetchUserBalanceForTxnPage() {
+    console.log("DEBUG: fetchUserBalanceForTxnPage called");
+    const el = document.getElementById('user-balance-display');
+    console.log("DEBUG: Balance element found:", el);
+    if (!el) return;
+
+    const token = getAuthToken();
+    console.log("DEBUG: Fetching balance from API...");
+    fetch('/api/dashboard-data', {
+        headers: { 'Authorization': `Bearer ${token}` }
+    })
+        .then(res => {
+            console.log("DEBUG: API Response Status:", res.status);
+            return res.json();
+        })
+        .then(data => {
+            console.log("DEBUG: API Data:", data);
+            if (data.userBalance != null) {
+                const formatted = `RM ${data.userBalance.toLocaleString('en-MY', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                console.log("DEBUG: Setting balance to:", formatted);
+                el.textContent = formatted;
+            } else {
+                console.error("DEBUG: userBalance is null or undefined in API response");
+            }
+        })
+        .catch(err => console.error("DEBUG: Error fetching balance:", err));
+}
+

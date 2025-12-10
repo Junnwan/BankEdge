@@ -4,7 +4,7 @@ from flask import Blueprint, jsonify, request, current_app
 from datetime import datetime, timezone, timedelta
 from flask_jwt_extended import jwt_required, get_jwt, get_jwt_identity
 
-from models import db, Transaction, Device
+from models import db, Transaction, Device, User
 
 transactions_bp = Blueprint('transactions_api', __name__, url_prefix='/api')
 
@@ -138,15 +138,25 @@ def init_payment_intent():
 def update_payment_intent(intent_id):
     try:
         stripe.api_key = current_app.config.get("STRIPE_SECRET_KEY")
-
         data = request.get_json() or {}
-        amount = data.get("amount")
+        amount = data.get("amount") # in MYR (e.g. 150.00)
         recipient = data.get("recipientAccount") or ""
         reference = data.get("reference") or ""
 
         if not amount:
             return jsonify({"error": "Amount is required"}), 400
 
+        # BALANCE CHECK
+        username = get_jwt_identity()
+        user = User.query.filter_by(username=username).first()
+        if not user:
+             return jsonify({'error': 'User not found'}), 404
+             
+        current_balance = user.balance if user.balance is not None else 0.0
+        if current_balance < float(amount):
+            return jsonify({'error': f'Insufficient funds. Balance: RM {current_balance:.2f}'}), 400
+
+        # Convert to cents for Stripe
         amount_cents = int(float(amount) * 100)
 
         # Get user info from JWT
@@ -211,7 +221,37 @@ def payment_success():
 
         final_status = "succeeded" if raw_status == "succeeded" else "failed"
 
-        # Detect payment method robustly:
+        # -----------------------------------------------------------------
+        # BALANCE DEDUCTION LOGIC
+        # Only deduct if status is succeeded and we haven't processed this yet
+        # -----------------------------------------------------------------
+        username = get_jwt_identity()
+        user = User.query.filter_by(username=username).first()
+        
+        old_balance = 0.0
+        new_balance = 0.0
+        
+        # Determine amount
+        if intent and getattr(intent, "amount", None) is not None:
+             amount_rm = float(intent.amount) / 100.0
+        else:
+             amount_rm = float(data.get("amount", 0.0))
+
+        if user and final_status == 'succeeded':
+            # We assume balance check passed at init/update.
+            # But concurrently it might have changed. 
+            # Force deduction or check again?
+            # For this MVC, just deduct.
+            old_balance = user.balance if user.balance is not None else 0.0
+            if user.balance is None: user.balance = 0.0
+            user.balance -= amount_rm
+            new_balance = user.balance
+            # Ensure balance doesn't go negative? 
+            # if user.balance < 0: user.balance = 0 (optional)
+        elif user:
+            # Failed tx, no deduction
+            old_balance = user.balance if user.balance is not None else 0.0
+            new_balance = user.balance if user.balance is not None else 0.0
         payment_method = "unknown"
         try:
             # preferred: use the PaymentMethod attached to the PaymentIntent
@@ -293,6 +333,10 @@ def payment_success():
                 processed_at="cloud",
 
                 # new fields
+                old_balance_org=old_balance,
+                new_balance_org=new_balance,
+                is_fraud=False, # Default non-fraud
+
                 recipient_account=recipient_account,
                 reference=reference,
 

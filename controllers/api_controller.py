@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify, request, current_app
-from flask_jwt_extended import jwt_required, get_jwt, create_access_token
+from flask_jwt_extended import jwt_required, get_jwt, create_access_token, get_jwt_identity
 from models import db, User, Device, Transaction
 from datetime import datetime, timedelta, timezone
 import random
@@ -96,6 +96,11 @@ def dashboard_data():
 
         device_id = locmap.get(user_location, None)
         device = db.session.get(Device, device_id)
+        
+        # Get User Balance
+        username = get_jwt_identity()
+        user = User.query.filter_by(username=username).first()
+        user_balance = user.balance if user else 0.0
 
         # Build final device info for dashboard header box
         device_box = None
@@ -140,9 +145,10 @@ def dashboard_data():
 
         return jsonify({
             "deviceBox": device_box,
-            "devices": filtered_devices,  # list for bottom panel only
+            "devices": filtered_devices,
+            "transactions": txn_data,
             "latency": generate_latency_history(),
-            "transactions": txn_data
+            "userBalance": user_balance
         })
 
     except Exception as e:

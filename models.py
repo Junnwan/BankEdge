@@ -17,6 +17,7 @@ class User(db.Model):
     username = db.Column(db.String(150), unique=True, nullable=False)
     password_hash = db.Column(db.String(128), nullable=False)
     role = db.Column(db.String(50), nullable=False, default='admin')  # admin / superadmin
+    balance = db.Column(db.Float, default=100000.0)  # NEW: Initial balance RM 100,000
     last_login = db.Column(db.DateTime, nullable=True)
 
     def set_password(self, password):
@@ -55,6 +56,11 @@ class Transaction(db.Model):
     processed_at = db.Column(db.String(20), default='cloud')
 
     timestamp = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(UTC8))
+
+    # NEW: Balance & ML Fields
+    old_balance_org = db.Column(db.Float, default=0.0)
+    new_balance_org = db.Column(db.Float, default=0.0)
+    is_fraud = db.Column(db.Boolean, default=False)
 
     # NEW
     recipient_account = db.Column(db.String(150), nullable=True)
