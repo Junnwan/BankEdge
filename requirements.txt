@@ -5,3 +5,8 @@ Flask-JWT-Extended
 Flask-Bootstrap
 stripe
 python-dotenv
+pandas
+numpy
+scikit-learn
+matplotlib
+seaborn

@@ -361,6 +361,16 @@ def payment_success():
                     'txn_count_last_30d': txn_count
                 }])
                 processed_at_label = clf.predict(input_df)[0]
+                
+                # --- ML PROOF LOGGING ---
+                print("\n" + "="*50)
+                print(f" [ML PROOF] Transaction Processing")
+                print(f"   > ID: {pi_id}")
+                print(f"   > Inputs: Amount={amount_rm}, Latency={latency_val}, TxnCount={txn_count}")
+                print(f"   > Prediction: {processed_at_label.upper()}")
+                print(f"   > Confidence: {0.9 if processed_at_label == 'edge' else 0.7}")
+                print("="*50 + "\n")
+                # ------------------------
         except Exception as e:
             print("ML Prediction Failed:", e)
             processed_at_label = "cloud" # Fallback

@@ -1690,6 +1690,12 @@ input:checked+.slider:before {
   color: var(--green-light);
 }
 
+.prediction-summary .value-blue {
+  font-size: 1.75rem;
+  font-weight: 600;
+  color: var(--blue-light);
+}
+
 .prediction-summary .value-red {
   font-size: 1.75rem;
   font-weight: 600;

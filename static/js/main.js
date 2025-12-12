@@ -555,14 +555,42 @@ function renderMLPredictionChart(transactions) {
     if (!ctxEl) return;
     const ctx = ctxEl.getContext('2d');
 
-    const approved = transactions.filter(t => t.decision === 'edge' || t.decision === 'cloud' && t.stripeStatus === 'succeeded').length; // Logic tweak: ML doesn't 'approve', it routes. But let's say non-flagged is approved.
-    // Actually, let's simpler:
-    // Approved = edge/cloud (and not failed? let's stick to decision labels)
-    // The previous chart was "ML Prediction" which had approved/flagged.
-    // Now we have "Processing Decision": edge/cloud/flagged.
-    const edge = transactions.filter(t => t.decision === 'edge').length;
-    const cloud = transactions.filter(t => t.decision === 'cloud').length;
-    const flagged = transactions.filter(t => t.decision === 'flagged').length;
+    // Fix: API returns 'processing_decision' property, but code was using 'decision'.
+    const getDecision = (t) => t.processing_decision || t.decision;
+
+    const edge = transactions.filter(t => getDecision(t) === 'edge').length;
+    const cloud = transactions.filter(t => getDecision(t) === 'cloud').length;
+    const flagged = transactions.filter(t => getDecision(t) === 'flagged').length;
+    const total = edge + cloud + flagged || 1;
+
+    // Update summary text
+    // Update summary text (Handles both new and old HTML IDs to prevent caching issues)
+    // Update summary text (Handles both new and old HTML IDs to prevent caching issues)
+    const updateStat = (newId, oldId, count, labelText, pct, colorClass, colorHex) => {
+        let el = document.getElementById(newId) || document.getElementById(oldId);
+        if (el) {
+            el.textContent = count;
+            el.className = colorClass; // Force class update
+            el.style.color = colorHex; // Force color update
+
+            // Force label update
+            let labelEl = el.parentElement.querySelector('.label');
+            if (labelEl) labelEl.textContent = labelText;
+
+            // Pct update
+            let pctEl = document.getElementById(newId.replace('count', 'pct')) || document.getElementById(oldId.replace('count', 'pct'));
+            if (pctEl) pctEl.textContent = pct;
+        }
+    };
+
+    // Slot 1: Edge (Green)
+    updateStat('pred-edge-count', 'pred-approved-count', edge, 'Edge', Math.round(edge / total * 100) + '%', 'value-green', '#10b981');
+
+    // Slot 2: Cloud (Blue) - Maps to old 'Flagged' (Slot 2) to maintain 2nd position in old HTML
+    updateStat('pred-cloud-count', 'pred-flagged-count', cloud, 'Cloud', Math.round(cloud / total * 100) + '%', 'value-blue', '#3b82f6');
+
+    // Slot 3: Flagged (Red) - Maps to old 'Pending' (Slot 3) to maintain 3rd position in old HTML
+    updateStat('pred-flagged-count', 'pred-pending-count', flagged, 'Flagged', Math.round(flagged / total * 100) + '%', 'value-red', '#ef4444');
 
     const data = [edge, cloud, flagged];
 
@@ -647,6 +675,72 @@ function renderProcessingDecisions(decisions) {
     }).join('');
 }
 
+function renderLiveVerification(verification) {
+    if (!verification) return;
+
+    // Check if card already exists
+    let cardEl = document.getElementById('live-verification-card');
+    const containerEl = document.getElementById('live-verification-container');
+
+    // Create if not exists
+    if (!cardEl && containerEl) {
+        cardEl = document.createElement('div');
+        cardEl.id = 'live-verification-card';
+        // Removed 'stat-card' to avoid grid flex constraints. Using generic card style.
+        cardEl.className = 'card';
+        cardEl.style.width = '100%';
+        cardEl.style.marginBottom = '20px';
+        cardEl.style.boxSizing = 'border-box'; // Ensure padding doesn't overflow width
+        cardEl.style.padding = '20px'; // Add padding for card look
+        containerEl.appendChild(cardEl);
+    }
+
+    if (!cardEl) return;
+
+    const date = new Date(verification.timestamp).toLocaleString();
+    const statusColor = verification.decision === 'edge' ? '#10b981' : (verification.decision === 'flagged' ? '#ef4444' : '#3b82f6');
+    const statusIcon = verification.decision === 'edge' ? 'fa-server' : (verification.decision === 'flagged' ? 'fa-exclamation-triangle' : 'fa-cloud');
+
+    cardEl.innerHTML = `
+        <div style="position: relative;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px;">
+                <h3 style="margin: 0; display: flex; align-items: center; gap: 10px;">
+                    <i class="fas fa-check-circle" style="color: #10b981;"></i> 
+                    Live Model Verification
+                </h3>
+                <span style="font-size: 0.9rem; color: #666; font-family: monospace;">ID: ${verification.id}</span>
+            </div>
+            
+            <div style="display: flex; gap: 20px; width: 100%;">
+                <div style="flex: 1; background: rgba(0,0,0,0.02); padding: 15px; border-radius: 8px;">
+                    <small style="color: #888; text-transform: uppercase; font-size: 0.7rem; font-weight: bold; display: block; margin-bottom: 5px;">Input Features</small>
+                    <div style="font-weight: 500;">
+                        <span>Amount: RM ${verification.amount.toFixed(2)}</span> &bull; 
+                        <span>Latency: ${verification.latency.toFixed(1)} ms</span>
+                    </div>
+                </div>
+                <div style="flex: 1; background: rgba(0,0,0,0.02); padding: 15px; border-radius: 8px;">
+                    <small style="color: #888; text-transform: uppercase; font-size: 0.7rem; font-weight: bold; display: block; margin-bottom: 5px;">Model Decision</small>
+                    <div style="font-weight: bold; color: ${statusColor}; display: flex; align-items: center; gap: 8px;">
+                        <i class="fas ${statusIcon}"></i>
+                        ${verification.decision.toUpperCase()}
+                    </div>
+                </div>
+                <div style="flex: 1; background: rgba(0,0,0,0.02); padding: 15px; border-radius: 8px;">
+                    <small style="color: #888; text-transform: uppercase; font-size: 0.7rem; font-weight: bold; display: block; margin-bottom: 5px;">Confidence Score</small>
+                    <div style="font-weight: 500; font-size: 1.1rem;">
+                        ${(verification.confidence * 100).toFixed(1)}%
+                    </div>
+                </div>
+            </div>
+
+            <div style="margin-top: 15px; text-align: right; font-size: 0.8rem; color: #999;">
+                Verified at ${date}
+            </div>
+        </div>
+    `;
+}
+
 function renderFeatureImportance() {
     const listEl = document.getElementById('feature-importance-list');
     if (!listEl) return;
@@ -673,12 +767,7 @@ function renderFeatureImportance() {
     `).join('');
 }
 
-function switchMLTab(tabName) {
-    document.querySelectorAll('.tab-trigger').forEach(tab => tab.classList.remove('active'));
-    document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-    document.getElementById(`tab-${tabName}`).classList.add('active');
-    document.getElementById(`content-${tabName}`).classList.add('active');
-}
+// function switchMLTab(tabName) { ... } // REMOVED
 
 async function initializeMLPage() {
     const userLocation = sessionStorage.getItem('userLocation');
@@ -705,20 +794,20 @@ async function initializeMLPage() {
             allMlTransactions = data.transactions || [];
             processingDecisionsData = data.decisions || [];
 
-            let transactions = (userLocation === 'Global HQ')
-                ? allMlTransactions
-                : allMlTransactions.filter(t => {
-                    const device = allDevicesData.find(d => d.id === t.deviceId);
-                    return device && device.name === `Edge Node ${userLocation} `;
-                });
+            // Backend already filters by user role/location.
+            // Using allMlTransactions directly avoids race conditions with device data fetching.
+            let transactions = allMlTransactions;
 
             renderMLStatCards(mlMetricsData);
-            renderMLMetricsChart(mlMetricsData);
-            renderMLRadarChart(mlMetricsData);
-            renderFeatureImportance();
+            // renderMLMetricsChart(mlMetricsData);
+            // renderMLRadarChart(mlMetricsData);
+            // renderFeatureImportance();
             renderMLPredictionChart(transactions);
             renderRecentPredictions(transactions);
-            renderProcessingDecisions(processingDecisionsData);
+            // renderProcessingDecisions(processingDecisionsData);
+            if (data.latestVerification) {
+                renderLiveVerification(data.latestVerification);
+            }
 
         } catch (error) {
             console.error("Error fetching ML data:", error);
