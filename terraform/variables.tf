@@ -17,7 +17,7 @@ variable "db_password" {
 }
 
 variable "db_name" {
-  default = "bankedge_prod"
+  default = "bankedge_db"
 }
 
 variable "docker_image" {
