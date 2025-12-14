@@ -7,7 +7,7 @@ import sys
 # Example: python scripts/generate_live_traffic.py http://bankedge-alb-....amazonaws.com
 
 
-def generate_traffic(base_url, count=50):
+def generate_traffic(base_url, count=25):
     print(f"🚀 Targeting: {base_url}")
     print(f"generating {count} transactions...")
 
@@ -33,7 +33,8 @@ def generate_traffic(base_url, count=50):
     # 2. Generate Transactions
     success = 0
     for i in range(count):
-        amount = random.randint(10, 5000)
+        # Target avg 2000 to hit ~50k total for 25 txns
+        amount = random.randint(1000, 3000)
         
         # Simulate different scenarios
         if i % 10 == 0:
