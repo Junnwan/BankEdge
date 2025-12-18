@@ -20,6 +20,9 @@ def import_data():
         data = json.load(f)
 
     with app.app_context():
+        # Ensure tables exist (Crucial for first run on AWS)
+        print("Checking/Creating database tables...")
+        db.create_all()
         # Import Devices
         print("Importing Devices...")
         for d_data in data.get("devices", []):
