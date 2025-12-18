@@ -4,18 +4,61 @@ import random
 from locust import HttpUser, task, between, events
 # Open http://localhost:8089 to control the test
 
+import sqlite3
+
 class BankEdgeUser(HttpUser):
     wait_time = between(1, 3) # Simulated user think time
     token = None
     headers = {}
 
+    def get_latest_user_from_db(self):
+        """Fetches the most recently logged-in user from the local database."""
+        try:
+            # Connect to DB (assuming running from project root)
+            db_path = "bankedge.db"
+            if not os.path.exists(db_path):
+                # Fallback if running from scripts folder
+                db_path = "../bankedge.db"
+            
+            if not os.path.exists(db_path):
+                print("Warning: bankedge.db not found. Using default user.")
+                return None
+
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+            
+            # Get the user who logged in most recently
+            cursor.execute("SELECT username FROM user ORDER BY last_login DESC LIMIT 1")
+            result = cursor.fetchone()
+            conn.close()
+            
+            if result:
+                return result[0]
+        except Exception as e:
+            print(f"DB Read Error: {e}")
+        return None
+
     def on_start(self):
         """Login once at the start of the session"""
         
-        # Allow user to target specific region via env var
-        # e.g. $env:LOCUST_USER="admin.pahang@bankedge.com"; locust ...
-        target_user = os.environ.get("LOCUST_USER", "admin.kl@bankedge.com")
+        # --- STRATEGY 1: BEST PRACTICE (Uncomment or use Env Var) ---
+        # For AWS testing, it is best to be explicit.
+        # target_user = "admin.kl@bankedge.com" 
+        target_user = os.environ.get("LOCUST_USER")
         
+        # --- STRATEGY 2: CONVENIENCE (Auto-detect from Local DB) ---
+        # If no target is set above, we try to guess based on your last local login.
+        # This is great for local demos but optional for cloud testing.
+        if not target_user:
+            active_user = self.get_latest_user_from_db()
+            if active_user:
+                print(f"Auto-detected active dashboard user: {active_user}")
+                target_user = active_user
+        
+        # --- STRATEGY 3: FALLBACK ---
+        if not target_user:
+            target_user = "admin.kl@bankedge.com"
+
         try:
             response = self.client.post("/api/login", json={
                 "username": target_user,
@@ -24,7 +67,7 @@ class BankEdgeUser(HttpUser):
             if response.status_code == 200:
                 self.token = response.json().get('access_token')
                 self.headers = {"Authorization": f"Bearer {self.token}"}
-                print(f"Logged in as {target_user}")
+                print(f"--> Locust simulating traffic for: {target_user}")
             else:
                 print(f"Login failed for {target_user}:", response.text)
         except Exception as e:
