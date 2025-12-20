@@ -76,7 +76,7 @@ jobs:
       run: |
         aws ssm send-command \
           --document-name "AWS-RunShellScript" \
-          --targets "Key=tag:Name,Values=bankedge-app-server" \
+          --targets "Key=tag:Name,Values=bankedge-app-asg" \
           --comment "Deploying new version of BankEdge" \
           --parameters commands='[
             "docker pull ${{ env.DOCKER_IMAGE }}",
