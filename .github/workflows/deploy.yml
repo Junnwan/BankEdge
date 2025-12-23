@@ -9,6 +9,8 @@ env:
   TF_VAR_db_username: "dbadmin"
   TF_VAR_db_password: ${{ secrets.TF_DB_PASSWORD }}
   TF_VAR_docker_image: ${{ secrets.DOCKER_USERNAME }}/bankedge:latest
+  TF_VAR_stripe_publishable_key: ${{ secrets.STRIPE_PUBLISHABLE_KEY }}
+  TF_VAR_stripe_secret_key: ${{ secrets.STRIPE_SECRET_KEY }}
 
 jobs:
   build:
@@ -82,5 +84,8 @@ jobs:
             "docker pull ${{ env.DOCKER_IMAGE }}",
             "docker stop bankedge || true",
             "docker rm bankedge || true",
-            "docker run -d -p 5000:5000 --restart always --name bankedge -e DATABASE_URL=\"${{ secrets.DATABASE_URL }}\" -e STRIPE_PUBLISHABLE_KEY=\"${{ secrets.STRIPE_PUBLISHABLE_KEY }}\" -e STRIPE_SECRET_KEY=\"${{ secrets.STRIPE_SECRET_KEY }}\" ${{ env.DOCKER_IMAGE }}"
+            "export DB_URL=$(aws ssm get-parameter --name /bankedge/database_url --with-decryption --query Parameter.Value --output text)",
+            "export STRIPE_PK=$(aws ssm get-parameter --name /bankedge/stripe_publishable_key --with-decryption --query Parameter.Value --output text)",
+            "export STRIPE_SK=$(aws ssm get-parameter --name /bankedge/stripe_secret_key --with-decryption --query Parameter.Value --output text)",
+            "docker run -d -p 5000:5000 --restart always --name bankedge -e DATABASE_URL=\"$DB_URL\" -e STRIPE_PUBLISHABLE_KEY=\"$STRIPE_PK\" -e STRIPE_SECRET_KEY=\"$STRIPE_SK\" ${{ env.DOCKER_IMAGE }}"
           ]'

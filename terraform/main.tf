@@ -45,7 +45,18 @@ module "database" {
   db_password       = var.db_password
 }
 
-# 4. Load Balancer Module
+
+# 4. SSM Module (Secrets)
+module "ssm" {
+  source = "./modules/ssm"
+
+  project_name           = var.project_name
+  database_url           = "postgresql://${var.db_username}:${var.db_password}@${module.database.db_endpoint}/${module.database.db_name}"
+  stripe_publishable_key = var.stripe_publishable_key
+  stripe_secret_key      = var.stripe_secret_key
+}
+
+# 5. Load Balancer Module
 module "alb" {
   source = "./modules/alb"
 
