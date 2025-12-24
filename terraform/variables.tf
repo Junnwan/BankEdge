@@ -48,5 +48,5 @@ variable "stripe_secret_key" {
 
 variable "domain_name" {
   description = "Domain name for ACM Certificate"
-  default     = "bankedge.com"
+  default     = "bankedge.click"
 }

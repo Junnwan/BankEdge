@@ -12,3 +12,8 @@ output "cdn_url" {
   description = "CloudFront URL (HTTPS)"
   value       = "https://${module.cdn.cloudfront_domain_name}"
 }
+
+output "acm_validation_records" {
+  description = "DNS Records to add to your Registrar (CNAME)"
+  value       = module.acm.domain_validation_options
+}

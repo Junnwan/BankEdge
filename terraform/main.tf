@@ -111,7 +111,9 @@ module "acm" {
 module "cdn" {
   source = "./modules/cdn"
 
-  project_name = var.project_name
-  alb_dns_name = module.alb.dns_name
-  web_acl_arn  = module.waf.web_acl_arn
+  project_name        = var.project_name
+  alb_dns_name        = module.alb.dns_name
+  web_acl_arn         = module.waf.web_acl_arn
+  domain_name         = var.domain_name
+  acm_certificate_arn = module.acm.certificate_arn
 }
