@@ -470,3 +470,37 @@ def payment_success():
         current_app.logger.exception("Failed to save payment-success")
         db.session.rollback()
         return jsonify({"error": str(e)}), 500
+
+# =====================================================================
+# ML DIAGNOSTIC ENDPOINT
+# =====================================================================
+@transactions_bp.route('/ml-diagnosis', methods=['GET'])
+@jwt_required()
+def ml_diagnosis():
+    cl = get_jwt()
+    if cl.get("role") != "superadmin":
+        return jsonify({"error": "Unauthorized"}), 403
+
+    import pickle
+    import os
+
+    model_path = os.path.join(current_app.root_path, 'ml_models', 'offloading_model.pkl')
+    exists = os.path.exists(model_path)
+    
+    status = {
+        "model_path": model_path,
+        "exists": exists,
+        "size_bytes": os.path.getsize(model_path) if exists else 0,
+        "loadable": False,
+        "error": None
+    }
+
+    if exists:
+        try:
+            with open(model_path, 'rb') as f:
+                _ = pickle.load(f)
+            status["loadable"] = True
+        except Exception as e:
+            status["error"] = str(e)
+
+    return jsonify(status), 200
