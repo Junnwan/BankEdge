@@ -371,14 +371,13 @@ def payment_success():
         try:
             # Simulate latency logic
             import numpy as np
-            import pickle
+            import joblib
             import pandas as pd
             
             # Load Model (In production, load once at app startup)
             model_path = os.path.join(current_app.root_path, 'ml_models', 'offloading_model.pkl')
             if os.path.exists(model_path):
-                with open(model_path, 'rb') as f:
-                    clf = pickle.load(f)
+                clf = joblib.load(model_path)
                 
                 # Mock realtime latency (OR accept injection from Load Test)
                 if data.get('latency') is not None:
