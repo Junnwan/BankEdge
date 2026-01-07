@@ -11,7 +11,7 @@ resource "aws_db_instance" "main" {
   identifier        = "${var.project_name}-db"
   engine            = "postgres"
   engine_version    = "18.1"
-  instance_class    = "db.t3.micro"
+  instance_class    = "db.t3.small"
   allocated_storage = 20
   storage_type      = "gp2"
   multi_az          = true
