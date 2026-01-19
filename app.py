@@ -24,6 +24,10 @@ if database_url and database_url.startswith("postgres://"):
     database_url = database_url.replace("postgres://", "postgresql://", 1)
 
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url or 'sqlite:///' + os.path.join(basedir, 'bankedge.db')
+# Increase SQLite timeout to reduce "database is locked" errors
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    "connect_args": {"timeout": 30}
+}
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Secrets
@@ -49,11 +53,11 @@ if 'sqlite' in (app.config['SQLALCHEMY_DATABASE_URI'] or ''):
     from sqlalchemy import event
     from sqlalchemy.engine import Engine
 
-    @event.listens_for(Engine, "connect")
-    def set_sqlite_pragma(dbapi_connection, connection_record):
-        cursor = dbapi_connection.cursor()
-        cursor.execute("PRAGMA journal_mode=WAL")
-        cursor.close()
+    # @event.listens_for(Engine, "connect")
+    # def set_sqlite_pragma(dbapi_connection, connection_record):
+    #     cursor = dbapi_connection.cursor()
+    #     cursor.execute("PRAGMA journal_mode=WAL")
+    #     cursor.close()
 
 # -------------------------------------------------
 # Register Blueprints

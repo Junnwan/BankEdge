@@ -5,6 +5,35 @@ from datetime import datetime, timezone, timedelta
 from flask_jwt_extended import jwt_required, get_jwt, get_jwt_identity
 
 from models import db, Transaction, Device, User
+import joblib
+import pandas as pd
+import numpy as np
+import os
+
+# --- GLOBAL MODEL CACHE ---
+_ML_MODEL = None
+_ML_MODEL_LOADED = False
+
+def get_ml_model():
+    global _ML_MODEL, _ML_MODEL_LOADED
+    if _ML_MODEL_LOADED:
+        return _ML_MODEL
+    
+    try:
+        # Use current_app.root_path to find the model
+        model_path = os.path.join(current_app.root_path, 'ml_models', 'offloading_model.pkl')
+        if os.path.exists(model_path):
+            _ML_MODEL = joblib.load(model_path)
+            print(f" [ML] Model loaded successfully from {model_path}")
+        else:
+            print(f" [ML] Model file not found at {model_path}")
+            _ML_MODEL = None
+    except Exception as e:
+        print(f" [ML] Failed to load model: {e}")
+        _ML_MODEL = None
+    
+    _ML_MODEL_LOADED = True
+    return _ML_MODEL
 
 transactions_bp = Blueprint('transactions_api', __name__, url_prefix='/api')
 
@@ -355,23 +384,15 @@ def payment_success():
         processed_at_label = "cloud"
         latency_val = 0.0
         try:
-            # Simulate latency logic
-            import numpy as np
-            import joblib
-            import pandas as pd
-
-            # Load Model
-            model_path = os.path.join(current_app.root_path, 'ml_models', 'offloading_model.pkl')
-            if os.path.exists(model_path):
-                # Use joblib to load (faster and supports compression used in training)
-                clf = joblib.load(model_path)
-                
+            # Load Model (Cached)
+            clf = get_ml_model()
+            
+            if clf:
                 # Mock realtime latency (OR accept injection from Load Test)
                 if data.get('latency') is not None:
                      latency_val = float(data.get('latency'))
                 else:
                      latency_val = float(int(np.random.gamma(shape=2.0, scale=10.0)))
-                # device_load_val = float(np.random.uniform(10, 95))
 
                 # Calculate Frequency (Pattern Learning)
                 txn_count = 0
@@ -392,19 +413,16 @@ def payment_success():
                 processed_at_label = clf.predict(input_df)[0]
 
                 # --- ML PROOF LOGGING ---
-                print("\n" + "="*50)
-                print(f" [ML PROOF - RANDOM FOREST] Transaction Processing")
-                print(f"   > ID: {pi_id}")
-                print(f"   > Inputs: Amount={amount_rm}, Latency={latency_val}, TxnCount={txn_count}")
-                print(f"   > Prediction: {processed_at_label.upper()}")
-                print(f"   > Confidence: {0.9 if processed_at_label == 'edge' else 0.7}")
-                print("="*50 + "\n")
+                # Reduce logging noise for load test, or keep it?
+                # Keeping it for now but maybe shorter?
+                # print(f" [ML] {pi_id} -> {processed_at_label.upper()}")
                 # ------------------------
             else:
-                print("Random Forest Model not found. Using default decision (Cloud).")
+                # Model not found/loaded, default to Cloud
+                pass
 
         except Exception as e:
-            print("ML Prediction Failed:", e)
+            # print("ML Prediction Failed:", e)
             processed_at_label = "cloud" # Fallback
 
         # --- REALISTIC LATENCY SIMULATION ---

@@ -55,7 +55,7 @@ class Transaction(db.Model):
     stripe_status = db.Column(db.String(20), nullable=False, default='failed')
     processing_decision = db.Column(db.String(20), default='cloud') # Renamed from processed_at
 
-    timestamp = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(UTC8))
+    timestamp = db.Column(db.DateTime, nullable=False, default=lambda: datetime.now(UTC8), index=True)
 
     # NEW: Balance & ML Fields
     old_balance_org = db.Column(db.Float, default=0.0)
@@ -67,7 +67,7 @@ class Transaction(db.Model):
     reference = db.Column(db.String(200), nullable=True)
 
     merchant_name = db.Column(db.String(100))
-    device_id = db.Column(db.String(50), db.ForeignKey('device.id'), nullable=True)
+    device_id = db.Column(db.String(50), db.ForeignKey('device.id'), nullable=True, index=True)
     type = db.Column(db.String(50), default='Transfer')
     customer_id = db.Column(db.String(150), nullable=True)
 
