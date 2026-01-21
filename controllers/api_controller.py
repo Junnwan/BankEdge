@@ -11,25 +11,30 @@ UTC8 = timezone(timedelta(hours=8))
 
 @api_bp.route('/login', methods=['POST'])
 def login():
-    username = request.json.get('username', None)
-    password = request.json.get('password', None)
-    user = User.query.filter_by(username=username).first()
-    if user and user.check_password(password):
-        additional_claims = {"role": user.role}
-        if user.role == 'admin':
-             # Extract location from username e.g. admin.kl@...
-             parts = username.split('@')[0].split('.')
-             if len(parts) > 1:
-                 # Handle cases like admin2.johor -> johor
-                 loc_part = parts[1] if not parts[0][-1].isdigit() else parts[1] 
-                 additional_claims["userLocation"] = loc_part.upper()
-        
-        user.last_login = datetime.now(UTC8)
-        db.session.commit()
+    try:
+        username = request.json.get('username', None)
+        password = request.json.get('password', None)
+        user = User.query.filter_by(username=username).first()
+        if user and user.check_password(password):
+            additional_claims = {"role": user.role}
+            if user.role == 'admin':
+                 # Extract location from username e.g. admin.kl@...
+                 parts = username.split('@')[0].split('.')
+                 if len(parts) > 1:
+                     # Handle cases like admin2.johor -> johor
+                     loc_part = parts[1] if not parts[0][-1].isdigit() else parts[1] 
+                     additional_claims["userLocation"] = loc_part.upper()
+            
+            user.last_login = datetime.now(UTC8)
+            db.session.commit()
 
-        access_token = create_access_token(identity=username, additional_claims=additional_claims)
-        return jsonify(access_token=access_token, role=user.role, userLocation=additional_claims.get("userLocation", ""))
-    return jsonify({"msg": "Bad username or password"}), 401
+            access_token = create_access_token(identity=username, additional_claims=additional_claims)
+            return jsonify(access_token=access_token, role=user.role, userLocation=additional_claims.get("userLocation", ""))
+        return jsonify({"msg": "Bad username or password"}), 401
+    except Exception as e:
+        import traceback
+        traceback.print_exc() # Log to stderr (CloudWatch)
+        return jsonify({"error": str(e), "trace": traceback.format_exc()}), 500
 
 @api_bp.route('/config', methods=['GET'])
 def get_config():
