@@ -27,4 +27,4 @@ EXPOSE 5000
 
 # Run flask when the container launches
 # Run app.py using Gunicorn
-CMD ["gunicorn", "-w", "4", "--timeout", "120", "-b", "0.0.0.0:5000", "app:app"]
+CMD ["gunicorn", "--preload", "-w", "4", "--timeout", "120", "-b", "0.0.0.0:5000", "app:app"]

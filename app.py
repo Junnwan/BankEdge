@@ -157,6 +157,13 @@ with app.app_context():
         seed_admin_user()
 
 # -------------------------------------------------
+# Pre-load ML Model (Crucial for Gunicorn --preload)
+# -------------------------------------------------
+from controllers.transactions_controller import init_model
+with app.app_context():
+    init_model()
+
+# -------------------------------------------------
 # Start Server
 # -------------------------------------------------
 if __name__ == '__main__':

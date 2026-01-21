@@ -14,6 +14,10 @@ import os
 _ML_MODEL = None
 _ML_MODEL_LOADED = False
 
+def init_model():
+    """Explicitly load the model (used for Pre-loading)."""
+    get_ml_model()
+
 def get_ml_model():
     global _ML_MODEL, _ML_MODEL_LOADED
     if _ML_MODEL_LOADED:
@@ -21,10 +25,18 @@ def get_ml_model():
     
     try:
         # Use current_app.root_path to find the model
-        model_path = os.path.join(current_app.root_path, 'ml_models', 'offloading_model.pkl')
+        # NOTE: During Gunicorn preload, current_app might not work as expected
+        # outside of request context. We use relative path fallback.
+        try:
+             root = current_app.root_path
+        except:
+             root = os.getcwd()
+
+        model_path = os.path.join(root, 'ml_models', 'offloading_model.pkl')
         if os.path.exists(model_path):
+            print(f" [ML] Loading model from {model_path}...")
             _ML_MODEL = joblib.load(model_path)
-            print(f" [ML] Model loaded successfully from {model_path}")
+            print(f" [ML] Model loaded successfully.")
         else:
             print(f" [ML] Model file not found at {model_path}")
             _ML_MODEL = None
