@@ -274,6 +274,15 @@ let allDevicesData = [];
 
 function initializeEdgeDevicesPage() {
     const token = getAuthToken();
+    const userLocation = sessionStorage.getItem('userLocation');
+    const role = sessionStorage.getItem('role');
+
+    // Update Subtitle based on role
+    const subtitleEl = document.getElementById('page-header-subtitle');
+    if (subtitleEl && role !== 'superadmin' && userLocation && userLocation !== 'Global HQ') {
+        subtitleEl.textContent = `Monitor and manage edge computing nodes for ${userLocation}`;
+    }
+
     fetch('/api/devices', {
         headers: { 'Authorization': `Bearer ${token}` }
     })

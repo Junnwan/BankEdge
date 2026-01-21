@@ -336,13 +336,19 @@ body.sidebar-collapsed .content {
 
 /* Content Header (Restored) */
 .content-header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background-color: var(--db-bg);
+  /* Reset padding/margins to handle sticky seamlessly if needed, or just add BG */
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
   margin-bottom: 32px;
   padding-bottom: 16px;
+  padding-top: 16px; /* Add internal top padding */
+  margin-top: -16px; /* Counteract top padding to maintain flow */
   border-bottom: 2px solid #cbd5e1;
-  /* Thicker and slightly darker for visibility */
 }
 
 .content h1 {
