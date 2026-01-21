@@ -232,7 +232,7 @@ function renderTransactions(transactions) {
                 <td><span class="status-badge ${statusClass}">${t.stripe_status}</span></td>
                 <td><span class="badge ${t.processing_decision === 'edge' ? 'edge' : t.processing_decision === 'flagged' ? 'cloud' : 'cloud'}">${t.processing_decision}</span></td>
                 <td>${t.confidence ? (t.confidence * 100).toFixed(0) + '%' : '-'}</td>
-                <td>${new Date(t.timestamp).toLocaleString()}</td>
+                <td>${t.timestamp ? formatTimestampUTC(t.timestamp) : '-'}</td>
             </tr>
         `;
     }).join('');
