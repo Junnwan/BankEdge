@@ -14,8 +14,9 @@ RUN apt-get update && apt-get install -y \
     tzdata \
     && rm -rf /var/lib/apt/lists/*
 
-# Set Timezone to KL (GMT+8)
+# Set Timezone to KL (GMT+8) using symlink
 ENV TZ=Asia/Kuala_Lumpur
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
 # Copy the current directory contents into the container at /app
 COPY . /app
