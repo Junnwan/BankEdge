@@ -992,7 +992,7 @@ function renderTxnTable(transactions) {
                     <td>RM ${typeof txn.amount === 'number' ? txn.amount.toFixed(2) : '0.00'}</td>
                     <td>${statusBadge}</td>
                     <td><span class="badge ${txn.processing_decision === 'edge' ? 'edge' : (txn.processing_decision === 'flagged' ? 'status-error' : 'cloud')}">${txn.processing_decision}</span></td>
-                    <td style="font-size: 0.85rem;">${txn.timestamp ? new Date(txn.timestamp).toLocaleString() : '-'}</td>
+                    <td style="font-size: 0.85rem;">${txn.timestamp ? formatTimestampUTC(txn.timestamp) : '-'}</td>
                     <td>${txn.recipient_account || '-'}</td>
                     <td>${txn.reference || '-'}</td>
                     <td>${txn.merchant_name || 'Unknown'}</td>
@@ -1037,7 +1037,7 @@ function showTransactionDetails(txnId) {
         </div>
         <div class="detail-row">
             <span class="detail-label">Date & Time</span>
-            <span class="detail-value">${txn.timestamp ? new Date(txn.timestamp).toLocaleString() : '-'}</span>
+            <span class="detail-value">${txn.timestamp ? formatTimestampUTC(txn.timestamp) : '-'}</span>
         </div>
         <hr style="border: 0; border-top: 1px solid var(--border-color); margin: 16px 0;">
         <div class="detail-row">
@@ -1904,3 +1904,12 @@ function fetchUserBalanceForTxnPage() {
         .catch(err => console.error("DEBUG: Error fetching balance:", err));
 }
 
+// Helper to treat naive strings as UTC
+function formatTimestampUTC(ts) {
+    if (!ts) return "-";
+    // If naive (no "Z" or "+"), append "Z" to force UTC interpretation
+    if (!ts.includes("Z") && !ts.includes("+")) {
+        ts += "Z";
+    }
+    return new Date(ts).toLocaleString();
+}
