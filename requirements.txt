@@ -12,6 +12,6 @@ matplotlib
 seaborn
 psycopg2-binary
 locust
-tensorflow
+
 joblib
 gunicorn
