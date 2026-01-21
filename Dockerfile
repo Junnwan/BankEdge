@@ -7,10 +7,15 @@ FROM python:3.9-slim
 WORKDIR /app
 
 # Install system dependencies for Scikit-Learn (OpenMP) and others
+# Install system dependencies for Scikit-Learn (OpenMP) and others
 RUN apt-get update && apt-get install -y \
     libgomp1 \
     libatomic1 \
+    tzdata \
     && rm -rf /var/lib/apt/lists/*
+
+# Set Timezone to KL (GMT+8)
+ENV TZ=Asia/Kuala_Lumpur
 
 # Copy the current directory contents into the container at /app
 COPY . /app
