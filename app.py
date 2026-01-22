@@ -32,6 +32,9 @@ app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
 }
 
 if 'sqlite' in app.config['SQLALCHEMY_DATABASE_URI']:
+    db_path = os.path.join(basedir, 'instance', 'bankedge.db')
+    os.makedirs(os.path.dirname(db_path), exist_ok=True)
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + db_path
     app.config['SQLALCHEMY_ENGINE_OPTIONS']["connect_args"] = {"timeout": 30}
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
@@ -109,55 +112,8 @@ def transactions_page():
 def system_management_page():
     return render_template('system_management.html', title='System Management')
 
-# -------------------------------------------------
-# Database Initialization & Seeding
-# -------------------------------------------------
-def seed_admin_user():
-    """Ensures a default admin user exists if the DB is empty."""
-    from models import User
-    try:
-        # Check if ANY user exists already - if so, don't seed to avoid interference
-        if User.query.first():
-            return
-            
-        admin_email = "admin.kl@bankedge.com"
-        print(f" [DB] No users found. Seeding default startup admin: {admin_email}")
-        user = User(username=admin_email, role='admin', balance=100000.0)
-        user.set_password("Admin@123")
-        db.session.add(user)
-        db.session.commit()
-        print(" [DB] Startup admin created.")
-    except Exception as e:
-        print(f" [DB] WARNING: Startup seeding skipped: {e}")
-
-def setup_database(app):
-    with app.app_context():
-        # Handle SQLite paths
-        if 'sqlite' in app.config['SQLALCHEMY_DATABASE_URI']:
-            db_path = os.path.join(basedir, 'instance', 'bankedge.db')
-            instance_dir = os.path.dirname(db_path)
-            if not os.path.exists(instance_dir):
-                os.makedirs(instance_dir, exist_ok=True)
-            app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + db_path
-
-        # 2. Synchronize Tables (PostgreSQL tables won't be deleted, only created if missing)
-        try:
-            db.create_all()
-            # Only seed if we are not currently running a migration script
-            if not os.environ.get('MIGRATION_IN_PROGRESS'):
-                seed_admin_user()
-            else:
-                print(" [DB] Migration in progress. Skipping auto-seeding.")
-        except Exception as e:
-            print(f" [DB] Database init error: {e}")
-
-# Run setup
-if not os.environ.get('MIGRATION_IN_PROGRESS'):
-    # Mask URL for logging
-    raw_url = os.environ.get('DATABASE_URL', 'default-sqlite')
-    masked_url = raw_url.split('@')[-1] if '@' in raw_url else 'SQLite'
-    print(f" [DB] App initializing with database at: ...@{masked_url}")
-    setup_database(app)
+# Note: Database schema and initial data are managed externally 
+# via the 'scripts/import_db.py' migration script.
 
 # -------------------------------------------------
 # Pre-load ML Model (Crucial for Gunicorn --preload)

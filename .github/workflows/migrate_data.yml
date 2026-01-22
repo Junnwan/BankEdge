@@ -26,5 +26,5 @@ jobs:
           --max-concurrency "1" \
           --comment "Running Data Migration" \
           --parameters commands='[
-            "docker exec -e MIGRATION_IN_PROGRESS=1 bankedge python scripts/import_db.py"
+            "docker exec bankedge python scripts/import_db.py"
           ]'
