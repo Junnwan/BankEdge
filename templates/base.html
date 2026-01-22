@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=32">
   <!-- Chart.js library -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
   <!-- NEW: Stripe.js library -->
   <script src="https://js.stripe.com/v3/"></script>
 
@@ -40,9 +41,8 @@
     <div class="sidebar" id="sidebar">
       <div class="sidebar-header">
         <div class="logo-icon">
-          <i class="fas fa-shield-alt"></i>
+          <img src="{{ url_for('static', filename='favicon.png') }}" alt="BankEdge Logo">
         </div>
-        <span class="logo-text">BankEdge</span>
         <button id="sidebar-toggle" class="sidebar-toggle">
           <i class="fas fa-bars"></i>
         </button>
