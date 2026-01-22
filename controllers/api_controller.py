@@ -40,24 +40,24 @@ def login():
 def get_config():
     return jsonify({'publishableKey': current_app.config.get('STRIPE_PUBLISHABLE_KEY', '')})
 
-# 2025 POPULATION DATA (in millions * 1M)
+# 2025 DEMO CAPACITY (Reduced for visibility in charts)
 TXN_CAPACITY_MAP = {
-    "edge-1":  4200000, # Johor
-    "edge-2":  2200000, # Kedah
-    "edge-3":  1900000, # Kelantan
-    "edge-4":  1100000, # Melaka
-    "edge-5":  1200000, # Negeri Sembilan
-    "edge-6":  1700000, # Pahang
-    "edge-7":  1800000, # Penang
-    "edge-8":  2600000, # Perak
-    "edge-9":   300000, # Perlis
-    "edge-10": 3800000, # Sabah
-    "edge-11": 2500000, # Sarawak
-    "edge-12": 7400000, # Selangor
-    "edge-13": 1200000, # Terengganu
-    "edge-14": 2100000, # KL
-    "edge-15":  100000, # Labuan
-    "edge-16":  100000, # Putrajaya
+    "edge-1":  2000, # Johor
+    "edge-2":  1500, # Kedah
+    "edge-3":  1200, # Kelantan
+    "edge-4":   800, # Melaka
+    "edge-5":   900, # Negeri Sembilan
+    "edge-6":  1100, # Pahang
+    "edge-7":  1500, # Penang
+    "edge-8":  1800, # Perak
+    "edge-9":   300, # Perlis
+    "edge-10": 2000, # Sabah
+    "edge-11": 1600, # Sarawak
+    "edge-12": 3000, # Selangor
+    "edge-13":  900, # Terengganu
+    "edge-14": 1500, # KL
+    "edge-15":  200, # Labuan
+    "edge-16":  200, # Putrajaya
 }
 
 def get_hybrid_devices(target_device_id=None):
@@ -94,11 +94,13 @@ def get_hybrid_devices(target_device_id=None):
         tps = count / 60.0 # TPS
         
         # NEW FORMULA: Load = (Txn / Population) * 100
-        capacity = TXN_CAPACITY_MAP.get(d.id, 1000000) # Default 1M
-        current_load = min((count / capacity) * 100.0, 100.0)
+        capacity = TXN_CAPACITY_MAP.get(d.id, 1000) # Default capacity
+        # Add a small random jitter (0.2% - 1.2%) to make it look active even when count is low
+        jitter = random.uniform(0.2, 1.2)
+        current_load = min(((count / capacity) * 100.0) + jitter, 100.0)
         
-        if current_load == 0 and d.status == 'online':
-            current_load = 0.0 # Clean zero
+        if count == 0 and d.status == 'online':
+            current_load = jitter # Show the heartbeat jitter
 
         results.append({
             "id": d.id,
