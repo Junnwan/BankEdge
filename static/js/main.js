@@ -1158,7 +1158,9 @@ function renderAdminTable() {
             <td><span class="status-badge ${admin.status}">${admin.status}</span></td>
             <td class="action-cell">
                 <button class="action-button" onclick="handleEditAdmin('${admin.id}')" title="Edit"><i class="fas fa-edit"></i></button>
+                ${admin.username !== 'superadmin@bankedge.com' ? `
                 <button class="action-button delete" onclick="handleDeleteAdmin('${admin.id}')" title="Delete"><i class="fas fa-trash-alt"></i></button>
+                ` : ''}
             </td>
         </tr>
         `).join('');
