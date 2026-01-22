@@ -173,7 +173,9 @@ body.sidebar-collapsed .sidebar-footer label {
 }
 
 body.sidebar-collapsed .sidebar-header {
-  padding: 0 0 20px 0;
+  padding: 12px 0 20px 0;
+  /* Add top padding to keep logo centered */
+  flex-direction: column;
   justify-content: center;
   display: flex;
 }
@@ -209,6 +211,9 @@ body.sidebar-collapsed .logout-button i {
   font-weight: 600;
   color: var(--text-color);
   display: flex;
+  flex-direction: column;
+  /* Vertical alignment */
+  gap: 12px;
   justify-content: center;
   align-items: center;
   position: relative;
@@ -346,8 +351,10 @@ body.sidebar-collapsed .content {
   align-items: flex-start;
   margin-bottom: 32px;
   padding-bottom: 16px;
-  padding-top: 16px; /* Add internal top padding */
-  margin-top: -16px; /* Counteract top padding to maintain flow */
+  padding-top: 16px;
+  /* Add internal top padding */
+  margin-top: -16px;
+  /* Counteract top padding to maintain flow */
   border-bottom: 2px solid #cbd5e1;
 }
 
