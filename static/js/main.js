@@ -46,6 +46,26 @@ function handleLogout() {
     window.location.href = '/';
 }
 
+// --- IDLE TIMEOUT LOGIC (10 Minutes) ---
+let idleTimer;
+function resetIdleTimer() {
+    clearTimeout(idleTimer);
+    // Only track if user is logged in
+    if (sessionStorage.getItem('authToken')) {
+        idleTimer = setTimeout(() => {
+            console.log("User idle for 10 minutes. Logging out...");
+            handleLogout();
+        }, 10 * 60 * 1000); // 10 minutes
+    }
+}
+
+// Add event listeners to reset timer on user activity
+window.onload = resetIdleTimer;
+document.onmousemove = resetIdleTimer;
+document.onkeypress = resetIdleTimer;
+document.onclick = resetIdleTimer;
+document.onscroll = resetIdleTimer;
+
 function getAuthToken() {
     return sessionStorage.getItem('authToken');
 }
