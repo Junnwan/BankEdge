@@ -13,18 +13,28 @@ INPUT_FILE = os.path.join(os.path.dirname(__file__), '../migrations/data_dump.js
 
 def import_data():
     if not os.path.exists(INPUT_FILE):
-        print(f"Error: {INPUT_FILE} not found.")
+        print(f" [DB] Error: {INPUT_FILE} not found.")
         sys.exit(1)
 
+    print(f" [DB] Reading data dump from {INPUT_FILE}...")
     with open(INPUT_FILE, 'r') as f:
         data = json.load(f)
 
     with app.app_context():
-        # Ensure tables exist (Crucial for first run on AWS)
-        print("Checking/Creating database tables...")
-        db.create_all()
-        # Import Devices
-        print("Importing Devices...")
+        print(f" [DB] Connected to: {app.config['SQLALCHEMY_DATABASE_URI']}")
+        
+        # 1. Ensure Tables Exist
+        print(" [DB] Step 1: Checking/Creating database tables...")
+        try:
+            db.create_all()
+            print(" [DB] Tables verified.")
+        except Exception as e:
+            print(f" [DB] CRITICAL ERROR during create_all: {e}")
+            return
+
+        # 2. Import Devices
+        print(" [DB] Step 2: Importing Devices...")
+        d_count = 0
         for d_data in data.get("devices", []):
             existing = Device.query.get(d_data['id'])
             if not existing:
@@ -37,35 +47,40 @@ def import_data():
                     last_sync=datetime.fromisoformat(d_data['last_sync']) if d_data['last_sync'] else None
                 )
                 db.session.add(device)
-            else:
-                print(f"Skipping existing device {d_data['id']}")
+                d_count += 1
         
-        # Import Users
-        print("Importing Users...")
+        db.session.commit()
+        print(f" [DB] Successfully imported {d_count} devices.")
+        
+        # 3. Import Users
+        print(" [DB] Step 3: Importing Users...")
+        u_count = 0
+        u_updated = 0
         for u_data in data.get("users", []):
             existing = User.query.filter_by(username=u_data['username']).first()
             if not existing:
                 user = User(
                     username=u_data['username'],
-                    password_hash=u_data['password_hash'], # HASH IS ALREADY GENERATED
+                    password_hash=u_data['password_hash'], 
                     role=u_data['role'],
                     balance=u_data.get('balance', 100000.0),
                     last_login=datetime.fromisoformat(u_data['last_login']) if u_data['last_login'] else None
                 )
-                # DO NOT CALL set_password(), use the hash directly
                 db.session.add(user)
+                u_count += 1
             else:
-                # OPTIONAL: Overwrite existing user data with migration data
-                # This ensures if seed_devices ran first, we update with the "real" local data
                 existing.balance = u_data.get('balance', 100000.0)
                 existing.password_hash = u_data['password_hash']
                 existing.role = u_data['role']
-                # existing.last_login = ... (Optional)
-                print(f"Updated existing user {u_data['username']}")
+                u_updated += 1
 
-        # Import Transactions
-        print("Importing Transactions...")
-        count = 0
+        db.session.commit()
+        print(f" [DB] Users: {u_count} created, {u_updated} updated.")
+
+        # 4. Import Transactions
+        print(" [DB] Step 4: Importing Transactions (Chunked)...")
+        t_count = 0
+        t_skipped = 0
         for t_data in data.get("transactions", []):
             existing = Transaction.query.get(t_data['id'])
             if not existing:
@@ -88,26 +103,26 @@ def import_data():
                     latency=t_data.get('latency', 0.0)
                 )
                 db.session.add(txn)
-                count += 1
+                t_count += 1
                 
-                # Commit in chunks of 100 to avoid SSL/Timeout issues on Cloud PostGreSQL
-                if count % 100 == 0:
+                if t_count % 100 == 0:
                     try:
                         db.session.commit()
-                        print(f"Committed {count} transactions...")
+                        print(f" [DB] Committed {t_count} transactions...")
                     except Exception as e:
                         db.session.rollback()
-                        print(f"Chunk commit failed at {count}: {e}")
+                        print(f" [DB] Chunk commit failed at {t_count}: {e}")
             else:
-                # Optional: Update existing transaction? Usually immutable history.
-                pass
+                t_skipped += 1
 
         try:
             db.session.commit()
-            print(f"Final commit completed. Total new transactions: {count}")
+            print(f" [DB] Final commit completed.")
+            print(f" [DB] SUMMARY: {d_count} Devices, {u_count} Users, {t_count} Transactions imported.")
+            print(f" [DB] {t_skipped} duplicate transactions were skipped.")
         except Exception as e:
             db.session.rollback()
-            print(f"Final import commit failed: {e}")
+            print(f" [DB] ERROR: Final import commit failed: {e}")
 
 if __name__ == "__main__":
     import_data()

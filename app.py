@@ -110,55 +110,40 @@ def system_management_page():
     return render_template('system_management.html', title='System Management')
 
 # -------------------------------------------------
-# Database Auto-Creation (First Run Only)
 # -------------------------------------------------
-# -------------------------------------------------
-# Database Auto-Creation & Seeding
+# Database Initialization & Seeding
 # -------------------------------------------------
 def seed_admin_user():
-    """Ensures the default admin user exists."""
+    """Ensures a default admin user exists if the DB is empty."""
     from models import User
     try:
         admin_email = "admin.kl@bankedge.com"
         existing = User.query.filter_by(username=admin_email).first()
         if not existing:
-            print(f"Seeding default admin: {admin_email}")
+            print(f" [DB] Seeding default startup admin: {admin_email}")
             user = User(username=admin_email, role='admin', balance=100000.0)
             user.set_password("Admin@123")
             db.session.add(user)
             db.session.commit()
-            print("Default admin created.")
+            print(" [DB] Startup admin created.")
     except Exception as e:
-        print(f"Failed to seed admin user: {e}")
+        print(f" [DB] WARNING: Startup seeding skipped: {e}")
 
 with app.app_context():
-    # Ensure 'instance' folder exists
-    db_path = os.path.join(basedir, 'instance', 'bankedge.db')
-    
-    # Check if instance folder exists
-    instance_dir = os.path.dirname(db_path)
-    if not os.path.exists(instance_dir):
-        try:
-            os.makedirs(instance_dir)
-            print(f"Created instance directory: {instance_dir}")
-        except OSError as e:
-            print(f"Error creating instance directory: {e}")
-
-    # Re-configure URI if using default SQLite (Critical for Gunicorn)
+    # 1. Handle SQLite paths
     if 'sqlite' in app.config['SQLALCHEMY_DATABASE_URI']:
+        db_path = os.path.join(basedir, 'instance', 'bankedge.db')
+        instance_dir = os.path.dirname(db_path)
+        if not os.path.exists(instance_dir):
+            os.makedirs(instance_dir, exist_ok=True)
         app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + db_path
 
-    if not os.path.exists(db_path):
-        print(f"Database not found at {db_path}. Creating tables...")
-        try:
-            db.create_all()
-            print("Tables created successfully.")
-            seed_admin_user() 
-        except Exception as e:
-            print(f"Error creating database: {e}")
-    else:
-        # DB exists, but maybe empty? Ensure admin exists.
+    # 2. Synchronize Tables (PostgreSQL tables won't be deleted, only created if missing)
+    try:
+        db.create_all()
         seed_admin_user()
+    except Exception as e:
+        print(f" [DB] Database init error: {e}")
 
 # -------------------------------------------------
 # Pre-load ML Model (Crucial for Gunicorn --preload)
