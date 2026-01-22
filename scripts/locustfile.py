@@ -14,14 +14,22 @@ class BankEdgeUser(HttpUser):
     def get_latest_user_from_db(self):
         """Fetches the most recently logged-in user from the local database."""
         try:
-            # Connect to DB (assuming running from project root)
-            db_path = "bankedge.db"
-            if not os.path.exists(db_path):
-                # Fallback if running from scripts folder
-                db_path = "../bankedge.db"
+            # Check standard locations for bankedge.db
+            candidates = [
+                "instance/bankedge.db",
+                "bankedge.db",
+                "../instance/bankedge.db",
+                "../bankedge.db"
+            ]
             
-            if not os.path.exists(db_path):
-                print("Warning: bankedge.db not found. Using default user.")
+            db_path = None
+            for p in candidates:
+                if os.path.exists(p):
+                    db_path = p
+                    break
+            
+            if not db_path:
+                print("Warning: bankedge.db not found in instance/ or root. Using default user.")
                 return None
 
             conn = sqlite3.connect(db_path)
@@ -41,21 +49,16 @@ class BankEdgeUser(HttpUser):
     def on_start(self):
         """Login once at the start of the session"""
         
-        # --- STRATEGY 1: BEST PRACTICE (Uncomment or use Env Var) ---
-        # For AWS testing, it is best to be explicit.
-        target_user = "admin.kl@bankedge.com" 
-        # target_user = os.environ.get("LOCUST_USER")
+        # --- STRATEGY 1: DYNAMIC (Enabled) ---
+        # Fetch the user who most recently logged into the Dashboard UI
+        target_user = self.get_latest_user_from_db()
         
-        # --- STRATEGY 2: CONVENIENCE (DISABLED for Cloud Testing) ---
+        # --- STRATEGY 2: FALLBACKS ---
         if not target_user:
-            active_user = self.get_latest_user_from_db()
-            if active_user:
-                print(f"Auto-detected active dashboard user: {active_user}")
-                target_user = active_user
+            target_user = os.environ.get("LOCUST_USER")
         
-        # --- STRATEGY 3: FALLBACK ---
         if not target_user:
-            target_user = "admin.johor@bankedge.com"
+            target_user = "admin.kl@bankedge.com" # Default fallback
 
         try:
             response = self.client.post("/api/login", json={
