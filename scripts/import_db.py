@@ -65,6 +65,7 @@ def import_data():
 
         # Import Transactions
         print("Importing Transactions...")
+        count = 0
         for t_data in data.get("transactions", []):
             existing = Transaction.query.get(t_data['id'])
             if not existing:
@@ -87,16 +88,26 @@ def import_data():
                     latency=t_data.get('latency', 0.0)
                 )
                 db.session.add(txn)
+                count += 1
+                
+                # Commit in chunks of 100 to avoid SSL/Timeout issues on Cloud PostGreSQL
+                if count % 100 == 0:
+                    try:
+                        db.session.commit()
+                        print(f"Committed {count} transactions...")
+                    except Exception as e:
+                        db.session.rollback()
+                        print(f"Chunk commit failed at {count}: {e}")
             else:
                 # Optional: Update existing transaction? Usually immutable history.
                 pass
 
         try:
             db.session.commit()
-            print("Import completed successfully.")
+            print(f"Final commit completed. Total new transactions: {count}")
         except Exception as e:
             db.session.rollback()
-            print(f"Import failed: {e}")
+            print(f"Final import commit failed: {e}")
 
 if __name__ == "__main__":
     import_data()

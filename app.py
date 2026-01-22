@@ -24,11 +24,15 @@ if database_url and database_url.startswith("postgres://"):
     database_url = database_url.replace("postgres://", "postgresql://", 1)
 
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url or 'sqlite:///' + os.path.join(basedir, 'bankedge.db')
-# Increase SQLite timeout to reduce "database is locked" errors
+
+# Engine Options for both SQLite (timeout) and PostgreSQL (SSL/Pooling stability)
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    "pool_pre_ping": True,
+    "pool_recycle": 300,
+}
+
 if 'sqlite' in app.config['SQLALCHEMY_DATABASE_URI']:
-    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-        "connect_args": {"timeout": 30}
-    }
+    app.config['SQLALCHEMY_ENGINE_OPTIONS']["connect_args"] = {"timeout": 30}
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Secrets
