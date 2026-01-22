@@ -6,6 +6,9 @@ from datetime import datetime
 # Add project root to path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
+# Set flag to prevent app.py from auto-initializing while we migrate
+os.environ['MIGRATION_IN_PROGRESS'] = '1'
+
 from app import app
 from models import db, User, Device, Transaction
 
