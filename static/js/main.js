@@ -1938,9 +1938,9 @@ function fetchUserBalanceForTxnPage() {
 // Helper to treat naive strings as UTC
 function formatTimestampUTC(ts) {
     if (!ts) return "-";
-    // If naive (no "Z" or "+"), append "Z" to force UTC interpretation
-    if (!ts.includes("Z") && !ts.includes("+")) {
-        ts += "Z";
-    }
+    // If naive, let browser interpret as local time (which matches server behavior)
+    // if (!ts.includes("Z") && !ts.includes("+")) {
+    //    ts += "Z";
+    // }
     return new Date(ts).toLocaleString();
 }
