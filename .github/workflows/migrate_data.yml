@@ -24,8 +24,9 @@ jobs:
           --document-name "AWS-RunShellScript" \
           --targets "Key=tag:Name,Values=bankedge-app-asg" \
           --max-concurrency "1" \
-          --comment "Running Data Migration" \
+          --comment "Running Data Migration (Transient Container)" \
           --parameters commands='[
-            "export SKIP_ML_LOAD=true", 
-            "docker exec -e SKIP_ML_LOAD=true bankedge python scripts/import_db.py"
+            "export DB_URL=$(aws ssm get-parameter --name /bankedge/database_url --with-decryption --query Parameter.Value --output text)",
+            "docker run --rm --name bankedge-migration -e DATABASE_URL=\"$DB_URL\" -e SKIP_ML_LOAD=true ${{ secrets.DOCKER_USERNAME }}/bankedge:latest python scripts/import_db.py",
+            "echo \"Migration completed successfully.\""
           ]'
