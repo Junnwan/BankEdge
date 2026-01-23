@@ -6,6 +6,7 @@ on:
 env:
   AWS_REGION: ap-southeast-1
   DOCKER_IMAGE: ${{ secrets.DOCKER_USERNAME }}/bankedge:latest
+  # Terraform variables mapped from secrets
   TF_VAR_db_username: "dbadmin"
   TF_VAR_db_password: ${{ secrets.TF_DB_PASSWORD }}
   TF_VAR_docker_image: ${{ secrets.DOCKER_USERNAME }}/bankedge:latest
@@ -74,6 +75,20 @@ jobs:
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ env.AWS_REGION }}
 
+    # --- BUG FIX: Wait for EC2 to register with SSM ---
+    - name: Wait for EC2 to be Ready for SSM
+      run: |
+        echo "Waiting for instances to register with SSM..."
+        for i in {1..20}; do
+          INSTANCE_COUNT=$(aws ssm describe-instance-information --filters "Key=tag:Name,Values=bankedge-app-asg" --query "length(InstanceInformationList)" --output text)
+          if [ "$INSTANCE_COUNT" -gt "0" ]; then
+            echo "Instance found and ready!"
+            break
+          fi
+          echo "No instances ready yet. Retrying in 15 seconds..."
+          sleep 15
+        done
+
     - name: Deploy to EC2 via SSM
       run: |
         aws ssm send-command \
@@ -87,7 +102,7 @@ jobs:
             "sudo apt-get update -y",
             "sudo apt-get install -y awscli",
             "echo \"Logging into Docker...\"",
-            "docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_PASSWORD }} || true",
+            "docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_PASSWORD }}",
             "echo \"Pulling new image...\"",
             "docker pull ${{ env.DOCKER_IMAGE }}",
             "echo \"Stopping old container...\"",

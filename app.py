@@ -3,7 +3,7 @@ from flask import Flask, render_template
 from flask_jwt_extended import JWTManager
 from dotenv import load_dotenv
 from datetime import timedelta
-from models import db, bcrypt
+from models import db, bcrypt, User  # Ensure User is imported if referenced, though unused in init now
 from controllers.api_controller import api_bp
 from controllers.transactions_controller import transactions_bp
 
@@ -25,7 +25,6 @@ if database_url and database_url.startswith("postgres://"):
 
 app.config['SQLALCHEMY_DATABASE_URI'] = database_url or 'sqlite:///' + os.path.join(basedir, 'bankedge.db')
 
-# Engine Options for both SQLite (timeout) and PostgreSQL (SSL/Pooling stability)
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
     "pool_pre_ping": True,
     "pool_recycle": 300,
@@ -36,13 +35,14 @@ if 'sqlite' in app.config['SQLALCHEMY_DATABASE_URI']:
     os.makedirs(os.path.dirname(db_path), exist_ok=True)
     app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + db_path
     app.config['SQLALCHEMY_ENGINE_OPTIONS']["connect_args"] = {"timeout": 30}
+
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Secrets
 app.config['SECRET_KEY'] = os.environ.get('FLASK_SECRET', 'dev-secret-key')
 app.config['JWT_SECRET_KEY'] = os.environ.get('JWT_SECRET_KEY', 'jwt-secret-key')
 
-# Stripe (keys only stored – logic handled fully inside transactions_controller)
+# Stripe
 app.config['STRIPE_PUBLISHABLE_KEY'] = os.environ.get('STRIPE_PUBLISHABLE_KEY')
 app.config['STRIPE_SECRET_KEY'] = os.environ.get('STRIPE_SECRET_KEY')
 
@@ -56,17 +56,6 @@ db.init_app(app)
 bcrypt.init_app(app)
 jwt = JWTManager(app)
 
-# Enable SQLite Write-Ahead Logging (WAL) for concurrency
-if 'sqlite' in (app.config['SQLALCHEMY_DATABASE_URI'] or ''):
-    from sqlalchemy import event
-    from sqlalchemy.engine import Engine
-
-    # @event.listens_for(Engine, "connect")
-    # def set_sqlite_pragma(dbapi_connection, connection_record):
-    #     cursor = dbapi_connection.cursor()
-    #     cursor.execute("PRAGMA journal_mode=WAL")
-    #     cursor.close()
-
 # -------------------------------------------------
 # Register Blueprints
 # -------------------------------------------------
@@ -74,14 +63,10 @@ app.register_blueprint(api_bp, url_prefix='/api')
 app.register_blueprint(transactions_bp)
 
 # -------------------------------------------------
-# Routes (Template Rendering Only)
+# Routes
 # -------------------------------------------------
 @app.after_request
 def add_header(response):
-    """
-    Add headers to both force latest IE rendering engine or Chrome Frame,
-    and also to cache the rendered page for 10 minutes.
-    """
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "0"
@@ -113,33 +98,18 @@ def system_management_page():
     return render_template('system_management.html', title='System Management')
 
 # -------------------------------------------------
-# Database Synchronization (Tables & Failsafe Admin)
+# Database Initialization (Schema Only)
 # -------------------------------------------------
 with app.app_context():
     try:
-        # 1. Ensure schema exists
+        # Create tables if they don't exist
         db.create_all()
-        
-        # 2. Failsafe: Ensure at least one admin exists if migration hasn't run
-        # This uses the default password 'admin123' as a temporary fallback.
-        # If import_db.py runs, it will update this with the dump's data.
-        admin_email = 'admin.kl@bankedge.com'
-        if not User.query.filter_by(username=admin_email).first():
-            print(f" [DB] Failsafe: Seeding default admin {admin_email}...")
-            failsafe_admin = User(username=admin_email, role='admin')
-            failsafe_admin.set_password('admin123')
-            db.session.add(failsafe_admin)
-            db.session.commit()
-            print(" [DB] Failsafe seeding complete.")
-        
-        print(f" [DB] Database synchronized. Connected to: {app.config['SQLALCHEMY_DATABASE_URI'].split('@')[-1]}")
+        print(f" [DB] Schema synchronized. Connected to: {app.config['SQLALCHEMY_DATABASE_URI'].split('@')[-1]}")
     except Exception as e:
-        print(f" [DB] WARNING: Synchronization failed: {e}")
-
-# Note: Initial data is managed externally via 'scripts/import_db.py'
+        print(f" [DB] WARNING: Schema synchronization failed: {e}")
 
 # -------------------------------------------------
-# Pre-load ML Model (Crucial for Gunicorn --preload)
+# Pre-load ML Model
 # -------------------------------------------------
 from controllers.transactions_controller import init_model
 with app.app_context():
