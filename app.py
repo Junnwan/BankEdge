@@ -112,8 +112,19 @@ def transactions_page():
 def system_management_page():
     return render_template('system_management.html', title='System Management')
 
-# Note: Database schema and initial data are managed externally 
-# via the 'scripts/import_db.py' migration script.
+# -------------------------------------------------
+# Database Synchronization (Tables only, No Seeding)
+# -------------------------------------------------
+with app.app_context():
+    try:
+        # This ensures the tables exist in the DB (RDS or SQLite)
+        # It does NOT touch the data if the tables already exist.
+        db.create_all()
+        print(" [DB] Database schema synchronized.")
+    except Exception as e:
+        print(f" [DB] WARNING: Schema synchronization failed: {e}")
+
+# Note: Initial data is managed externally via 'scripts/import_db.py'
 
 # -------------------------------------------------
 # Pre-load ML Model (Crucial for Gunicorn --preload)
