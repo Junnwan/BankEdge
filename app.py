@@ -113,16 +113,28 @@ def system_management_page():
     return render_template('system_management.html', title='System Management')
 
 # -------------------------------------------------
-# Database Synchronization (Tables only, No Seeding)
+# Database Synchronization (Tables & Failsafe Admin)
 # -------------------------------------------------
 with app.app_context():
     try:
-        # This ensures the tables exist in the DB (RDS or SQLite)
-        # It does NOT touch the data if the tables already exist.
+        # 1. Ensure schema exists
         db.create_all()
-        print(" [DB] Database schema synchronized.")
+        
+        # 2. Failsafe: Ensure at least one admin exists if migration hasn't run
+        # This uses the default password 'admin123' as a temporary fallback.
+        # If import_db.py runs, it will update this with the dump's data.
+        admin_email = 'admin.kl@bankedge.com'
+        if not User.query.filter_by(username=admin_email).first():
+            print(f" [DB] Failsafe: Seeding default admin {admin_email}...")
+            failsafe_admin = User(username=admin_email, role='admin')
+            failsafe_admin.set_password('admin123')
+            db.session.add(failsafe_admin)
+            db.session.commit()
+            print(" [DB] Failsafe seeding complete.")
+        
+        print(f" [DB] Database synchronized. Connected to: {app.config['SQLALCHEMY_DATABASE_URI'].split('@')[-1]}")
     except Exception as e:
-        print(f" [DB] WARNING: Schema synchronization failed: {e}")
+        print(f" [DB] WARNING: Synchronization failed: {e}")
 
 # Note: Initial data is managed externally via 'scripts/import_db.py'
 

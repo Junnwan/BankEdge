@@ -57,10 +57,12 @@ def import_data():
         u_count = 0
         u_updated = 0
         for u_data in data.get("users", []):
-            existing = User.query.filter_by(username=u_data['username']).first()
+            u_name = u_data['username']
+            existing = User.query.filter_by(username=u_name).first()
             if not existing:
+                print(f" [DB]  + Creating user: {u_name}")
                 user = User(
-                    username=u_data['username'],
+                    username=u_name,
                     password_hash=u_data['password_hash'], 
                     role=u_data['role'],
                     balance=u_data.get('balance', 100000.0),
@@ -69,13 +71,14 @@ def import_data():
                 db.session.add(user)
                 u_count += 1
             else:
+                print(f" [DB]  ~ Updating existing user: {u_name}")
                 existing.balance = u_data.get('balance', 100000.0)
                 existing.password_hash = u_data['password_hash']
                 existing.role = u_data['role']
                 u_updated += 1
 
         db.session.commit()
-        print(f" [DB] Users: {u_count} created, {u_updated} updated.")
+        print(f" [DB] Users synced: {u_count} created, {u_updated} updated.")
 
         # 4. Import Transactions
         print(" [DB] Step 4: Importing Transactions (Chunked)...")
