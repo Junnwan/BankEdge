@@ -48,7 +48,7 @@ resource "aws_iam_instance_profile" "ec2_profile" {
 resource "aws_launch_template" "app" {
   name_prefix   = "${var.project_name}-lt-"
   image_id      = "ami-0123c9b6bfb7eb962" # Ubuntu 22.04 LTS
-  instance_type = "t3.small"
+  instance_type = "t3.medium"
 
   vpc_security_group_ids = [var.security_group_id]
 

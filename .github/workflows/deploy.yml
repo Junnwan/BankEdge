@@ -114,5 +114,7 @@ jobs:
             "export STRIPE_SK=$(aws ssm get-parameter --name /bankedge/stripe_secret_key --with-decryption --query Parameter.Value --output text)",
             "if [ -z \"$STRIPE_PK\" ]; then echo \"ERROR: STRIPE_PK is empty!\"; exit 1; fi",
             "echo \"Starting container...\"",
-            "docker run -d -p 5000:5000 --restart always --name bankedge -e DATABASE_URL=\"$DB_URL\" -e STRIPE_PUBLISHABLE_KEY=\"$STRIPE_PK\" -e STRIPE_SECRET_KEY=\"$STRIPE_SK\" ${{ env.DOCKER_IMAGE }}"
+            "docker run -d -p 5000:5000 --restart always --name bankedge -e DATABASE_URL=\"$DB_URL\" -e STRIPE_PUBLISHABLE_KEY=\"$STRIPE_PK\" -e STRIPE_SECRET_KEY=\"$STRIPE_SK\" ${{ env.DOCKER_IMAGE }} gunicorn -w 1 -b 0.0.0.0:5000 --timeout 120 app:app",
+            "echo \"Cleaning up old images...\"",
+            "docker system prune -a -f"
           ]'
