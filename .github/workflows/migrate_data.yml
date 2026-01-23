@@ -26,5 +26,6 @@ jobs:
           --max-concurrency "1" \
           --comment "Running Data Migration" \
           --parameters commands='[
-            "docker exec bankedge python scripts/import_db.py"
+            "export SKIP_ML_LOAD=true", 
+            "docker exec -e SKIP_ML_LOAD=true bankedge python scripts/import_db.py"
           ]'

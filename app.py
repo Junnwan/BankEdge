@@ -111,9 +111,13 @@ with app.app_context():
 # -------------------------------------------------
 # Pre-load ML Model
 # -------------------------------------------------
-from controllers.transactions_controller import init_model
-with app.app_context():
-    init_model()
+if os.environ.get('SKIP_ML_LOAD') != 'true':
+    from controllers.transactions_controller import init_model
+    with app.app_context():
+        init_model()
+    print(" [ML] Model pre-loaded successfully.")
+else:
+    print(" [ML] Skipping model load (Maintenance Mode).")
 
 # -------------------------------------------------
 # Start Server
